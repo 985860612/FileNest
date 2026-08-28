@@ -142,6 +142,40 @@ struct FileManagementTests {
         }
     }
 
+    @Test("Compression excludes macOS metadata but keeps normal dotfiles", .enabled(if: ProcessInfo.processInfo.environment["SEVENZIP_ENGINE_INTEGRATION"] == "1"))
+    func excludesMacOSMetadata() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("payload".utf8).write(to: root.appendingPathComponent("payload.txt"))
+        try Data("rules".utf8).write(to: root.appendingPathComponent(".gitignore"))
+        try Data("metadata".utf8).write(to: root.appendingPathComponent(".DS_Store"))
+        let metadataDirectory = root.appendingPathComponent("__MACOSX", isDirectory: true)
+        try FileManager.default.createDirectory(at: metadataDirectory, withIntermediateDirectories: true)
+        try Data("sidecar".utf8).write(to: metadataDirectory.appendingPathComponent("._payload.txt"))
+
+        let archive = root.deletingLastPathComponent().appendingPathComponent("filtered-\(UUID().uuidString).7z")
+        defer { try? FileManager.default.removeItem(at: archive) }
+        try ArchiveEngine.shared.compress(
+            inputs: [root],
+            to: archive,
+            format: .sevenZip,
+            password: "",
+            level: 5,
+            dictionarySize: CompressionDictionarySize.mib16.rawValue,
+            excludeMacOSMetadata: true,
+            volumeSize: 0,
+            cancellation: ArchiveCancellation(),
+            progress: { _ in }
+        )
+
+        let paths = try ArchiveEngine.shared.list(archive: archive).map(\.path)
+        #expect(paths.contains { $0.hasSuffix("/payload.txt") })
+        #expect(paths.contains { $0.hasSuffix("/.gitignore") })
+        #expect(!paths.contains { $0.contains(".DS_Store") })
+        #expect(!paths.contains { $0.contains("__MACOSX") })
+        #expect(!paths.contains { $0.contains("._payload.txt") })
+    }
+
     @Test("Archive volumes split and rejoin without changing bytes")
     func volumeRoundTrip() throws {
         let root = temporaryDirectory()

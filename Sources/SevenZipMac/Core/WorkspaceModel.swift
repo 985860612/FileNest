@@ -12,13 +12,18 @@ final class WorkspaceModel: ObservableObject {
     @Published var dictionarySize: CompressionDictionarySize = .automatic
     @Published var volumePreset: ArchiveVolumePreset = .none
     @Published var customVolumeMegabytes = 100
+    @Published var excludeMacOSMetadata = true
     @Published var isWorking = false
     @Published var progressFraction: Double?
     @Published var currentPath = ""
     @Published var statusMessage = "把文件拖到这里，或从 Finder 选择"
     @Published var errorMessage: String?
+    @Published var archiveEntries: [ArchiveEntry] = []
+    @Published var isLoadingArchiveContents = false
+    @Published var archivePreviewError: String?
 
     private var cancellation: ArchiveCancellation?
+    private var previewRequestID = UUID()
     private let engine: ArchiveEngine
 
     init(engine: ArchiveEngine = .shared) {
@@ -72,17 +77,63 @@ final class WorkspaceModel: ObservableObject {
         }
         statusMessage = "已选择 \(selectedURLs.count) 项"
         errorMessage = nil
+        refreshArchiveContents()
     }
 
     func remove(_ url: URL) {
         selectedURLs.removeAll { $0 == url }
-        if selectedURLs.isEmpty { statusMessage = "把文件拖到这里，或从 Finder 选择" }
+        if selectedURLs.isEmpty {
+            statusMessage = "把文件拖到这里，或从 Finder 选择"
+        }
+        refreshArchiveContents()
     }
 
     func clear() {
         selectedURLs.removeAll()
         errorMessage = nil
         statusMessage = "把文件拖到这里，或从 Finder 选择"
+        resetArchivePreview()
+    }
+
+    func refreshArchiveContents() {
+        previewRequestID = UUID()
+        let requestID = previewRequestID
+        guard mode == .extract,
+              selectedURLs.count == 1,
+              let archive = selectedURLs.first,
+              ArchiveUtilities.looksLikeArchive(archive)
+        else {
+            archiveEntries = []
+            archivePreviewError = nil
+            isLoadingArchiveContents = false
+            return
+        }
+
+        archiveEntries = []
+        archivePreviewError = nil
+        isLoadingArchiveContents = true
+        statusMessage = "正在读取归档内容…"
+        let password = password
+        let engine = engine
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            do {
+                let entries = try engine.list(archive: archive, password: password)
+                DispatchQueue.main.async {
+                    guard let self, self.previewRequestID == requestID else { return }
+                    self.archiveEntries = entries
+                    self.isLoadingArchiveContents = false
+                    self.statusMessage = "归档包含 \(entries.count) 项"
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    guard let self, self.previewRequestID == requestID else { return }
+                    self.archivePreviewError = error.localizedDescription
+                    self.isLoadingArchiveContents = false
+                    self.statusMessage = "无法读取归档内容"
+                }
+            }
+        }
     }
 
     func start() {
@@ -102,6 +153,7 @@ final class WorkspaceModel: ObservableObject {
         let selectedFormat = format
         let level = Int(compressionLevel)
         let dictionarySize = effectiveDictionarySize
+        let excludeMacOSMetadata = excludeMacOSMetadata
         let volumeSize = volumeSize
         let engine = engine
         let selectedMode = mode
@@ -137,6 +189,7 @@ final class WorkspaceModel: ObservableObject {
                         password: password,
                         level: level,
                         dictionarySize: dictionarySize,
+                        excludeMacOSMetadata: excludeMacOSMetadata,
                         volumeSize: volumeSize,
                         cancellation: token,
                         progress: Self.progressHandler(for: self)
@@ -186,6 +239,13 @@ final class WorkspaceModel: ObservableObject {
         cancellation = nil
         errorMessage = message
         statusMessage = message == "Cancelled" ? "已取消" : "操作失败"
+    }
+
+    private func resetArchivePreview() {
+        previewRequestID = UUID()
+        archiveEntries = []
+        archivePreviewError = nil
+        isLoadingArchiveContents = false
     }
 }
 

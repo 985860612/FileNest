@@ -14,6 +14,7 @@ private typealias CCompressFunction = @convention(c) (
     UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafePointer<CChar>?,
     UnsafePointer<UnsafePointer<CChar>?>?, Int,
     UnsafePointer<CChar>?, Int32, UInt64,
+    Int32,
     CProgressCallback?, CCancelCallback?, UnsafeMutableRawPointer?
 ) -> Int32
 private typealias CListFunction = @convention(c) (
@@ -114,6 +115,7 @@ final class ArchiveEngine: @unchecked Sendable {
         password: String,
         level: Int,
         dictionarySize: UInt64,
+        excludeMacOSMetadata: Bool = true,
         volumeSize: UInt64,
         cancellation: ArchiveCancellation,
         progress: @escaping @Sendable (ArchiveProgress) -> Void
@@ -136,6 +138,7 @@ final class ArchiveEngine: @unchecked Sendable {
                                 buffer.baseAddress, buffer.count,
                                 password.isEmpty ? nil : passwordPointer,
                                 Int32(level), dictionarySize,
+                                excludeMacOSMetadata ? 1 : 0,
                                 progressTrampoline, cancelTrampoline, context
                             )
                         }

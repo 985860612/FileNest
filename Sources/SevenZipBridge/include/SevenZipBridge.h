@@ -33,6 +33,7 @@ int sz_compress(const char *library_path,
                 const char *password,
                 int compression_level,
                 uint64_t dictionary_size,
+                int exclude_macos_metadata,
                 SZProgressCallback progress,
                 SZCancelCallback should_cancel,
                 void *context);
