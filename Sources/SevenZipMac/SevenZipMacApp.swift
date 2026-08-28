@@ -1,0 +1,36 @@
+import SwiftUI
+
+@main
+struct SevenZipMacApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var model = WorkspaceModel()
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView(model: model)
+        }
+        .windowStyle(.titleBar)
+        .defaultSize(width: 820, height: 560)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("添加文件…") { model.chooseFiles() }
+                    .keyboardShortcut("o")
+                Button("清空") { model.clear() }
+                    .keyboardShortcut(.delete, modifiers: [.command])
+                    .disabled(model.selectedURLs.isEmpty || model.isWorking)
+            }
+        }
+
+        Settings {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("SevenZip Mac")
+                    .font(.title2.weight(.semibold))
+                Text("进程内使用 7-Zip SDK 26.02，不调用命令行工具。")
+                Text("RAR 仅支持解压，不支持创建。")
+                    .foregroundStyle(.secondary)
+            }
+            .padding(24)
+            .frame(width: 420)
+        }
+    }
+}

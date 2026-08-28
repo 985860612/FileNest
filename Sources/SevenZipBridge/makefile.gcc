@@ -1,0 +1,47 @@
+PROG = libsevenzipbridge
+IS_NOT_STANDALONE = 1
+DEF_FILE = 1
+CXX_STD_FLAGS = -std=c++17
+LOCAL_FLAGS = -I.
+
+CURRENT_OBJS = \
+  $O/SevenZipBridge.o \
+
+COMMON_OBJS = \
+  $O/IntToString.o \
+  $O/MyString.o \
+  $O/MyVector.o \
+  $O/NewHandler.o \
+  $O/StringConvert.o \
+  $O/StringToInt.o \
+  $O/UTFConvert.o \
+  $O/Wildcard.o \
+
+WIN_OBJS = \
+  $O/DLL.o \
+  $O/FileDir.o \
+  $O/FileFind.o \
+  $O/FileIO.o \
+  $O/FileName.o \
+  $O/PropVariant.o \
+  $O/PropVariantConv.o \
+  $O/TimeUtils.o \
+
+7ZIP_COMMON_OBJS = \
+  $O/FileStreams.o \
+
+C_OBJS = \
+  $O/Alloc.o \
+
+OBJS = \
+  $(C_OBJS) \
+  $(COMMON_OBJS) \
+  $(WIN_OBJS) \
+  $O/MyWindows.o \
+  $(7ZIP_COMMON_OBJS) \
+  $(CURRENT_OBJS) \
+
+include ../../7zip_gcc.mak
+
+$O/SevenZipBridge.o: SevenZipBridge.cpp SevenZipBridge.h
+	$(CXX) $(CXXFLAGS) SevenZipBridge.cpp
