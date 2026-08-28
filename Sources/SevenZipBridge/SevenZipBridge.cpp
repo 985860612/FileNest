@@ -1352,8 +1352,18 @@ static bool AddDiskItem(CObjectVector<CDirItem> &items,
   return true;
 }
 
+static bool IsMacOSMetadata(const std::filesystem::path &path)
+{
+  const std::string name = path.filename().u8string();
+  return name == ".DS_Store" || name == "__MACOSX" ||
+      name == ".Spotlight-V100" || name == ".Trashes" ||
+      name == ".fseventsd" || name == ".DocumentRevisions-V100" ||
+      name == ".TemporaryItems" || name == ".VolumeIcon.icns" ||
+      name.rfind("._", 0) == 0;
+}
+
 static bool CollectDiskItems(const char *const *inputPaths, size_t inputCount,
-    CObjectVector<CDirItem> &items)
+    bool excludeMacOSMetadata, CObjectVector<CDirItem> &items)
 {
   namespace fs = std::filesystem;
   try
@@ -1366,16 +1376,25 @@ static bool CollectDiskItems(const char *const *inputPaths, size_t inputCount,
         SetLastError("A selected input does not exist");
         return false;
       }
+      if (excludeMacOSMetadata && IsMacOSMetadata(input))
+        continue;
       const fs::path base = input.parent_path();
       std::vector<fs::path> paths;
       paths.push_back(input);
       if (fs::is_directory(input) && !fs::is_symlink(input))
       {
-        for (const fs::directory_entry &entry :
-            fs::recursive_directory_iterator(input, fs::directory_options::skip_permission_denied))
+        fs::recursive_directory_iterator iterator(
+            input, fs::directory_options::skip_permission_denied);
+        const fs::recursive_directory_iterator end;
+        for (; iterator != end; ++iterator)
         {
-          if (!entry.is_symlink())
-            paths.push_back(entry.path());
+          const fs::directory_entry &entry = *iterator;
+          if (excludeMacOSMetadata && IsMacOSMetadata(entry.path()))
+          {
+            if (entry.is_directory()) iterator.disable_recursion_pending();
+            continue;
+          }
+          if (!entry.is_symlink()) paths.push_back(entry.path());
         }
       }
       std::sort(paths.begin(), paths.end());
@@ -1385,6 +1404,11 @@ static bool CollectDiskItems(const char *const *inputPaths, size_t inputCount,
         if (!AddDiskItem(items, path, archived))
           return false;
       }
+    }
+    if (items.IsEmpty())
+    {
+      SetLastError("No files remain after excluding macOS metadata");
+      return false;
     }
   }
   catch (const std::exception &error)
@@ -1510,6 +1534,7 @@ extern "C" int sz_extract(const char *libraryPath, const char *archivePath,
 extern "C" int sz_compress(const char *libraryPath, const char *archivePath,
     const char *format, const char *const *inputPaths, size_t inputCount,
     const char *password, int compressionLevel, uint64_t dictionarySize,
+    int excludeMacOSMetadata,
     SZProgressCallback progress, SZCancelCallback shouldCancel, void *context)
 {
   g_LastError.clear();
@@ -1538,7 +1563,7 @@ extern "C" int sz_compress(const char *libraryPath, const char *archivePath,
       return 4;
     }
     CObjectVector<CDirItem> items;
-    if (!CollectDiskItems(inputPaths, inputCount, items))
+    if (!CollectDiskItems(inputPaths, inputCount, excludeMacOSMetadata != 0, items))
       return 5;
 
     NDLL::CLibrary library;

@@ -7,6 +7,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
     case exportCatalog
     case copyFiles
     case trashFiles
+    case hashVerification
 
     var id: String { rawValue }
 
@@ -17,6 +18,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .exportCatalog: "导出文件目录"
         case .copyFiles: "批量复制文件"
         case .trashFiles: "移到废纸篓"
+        case .hashVerification: "Hash 校验"
         }
     }
 
@@ -27,6 +29,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .exportCatalog: "扫描文件夹并生成 XLSX 目录清单"
         case .copyFiles: "按 Excel 中的源路径和目标路径复制文件"
         case .trashFiles: "按 Excel 路径预览并安全移除文件"
+        case .hashVerification: "计算并验证文件的 MD5、SHA-1、SHA-256 或 SHA-512"
         }
     }
 
@@ -37,6 +40,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .exportCatalog: "tablecells"
         case .copyFiles: "doc.on.doc"
         case .trashFiles: "trash"
+        case .hashVerification: "checkmark.shield"
         }
     }
 
@@ -53,6 +57,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
 struct ContentView: View {
     @ObservedObject var model: WorkspaceModel
     @StateObject private var fileManagementModel = FileManagementWorkspaceModel()
+    @StateObject private var hashModel = HashWorkspaceModel()
     @State private var destination: AppDestination? = .extract
     @State private var dropTargeted = false
 
@@ -88,10 +93,14 @@ struct ContentView: View {
 
     private func synchronize(with destination: AppDestination) {
         switch destination {
-        case .extract: model.mode = .extract
+        case .extract:
+            model.mode = .extract
+            model.refreshArchiveContents()
         case .compress: model.mode = .compress
         case .exportCatalog, .copyFiles, .trashFiles:
             if let mode = destination.fileManagementMode { fileManagementModel.mode = mode }
+        case .hashVerification:
+            break
         }
     }
 
@@ -105,6 +114,9 @@ struct ContentView: View {
                 sidebarRow(.exportCatalog)
                 sidebarRow(.copyFiles)
                 sidebarRow(.trashFiles)
+            }
+            Section("工具") {
+                sidebarRow(.hashVerification)
             }
         }
         .listStyle(.sidebar)
@@ -122,9 +134,10 @@ struct ContentView: View {
     }
 
     private func sidebarRow(_ item: AppDestination) -> some View {
-        Label(item.title, systemImage: item.systemImage)
-            .tag(Optional(item))
-            .accessibilityHint(item.subtitle)
+        NavigationLink(value: item) {
+            Label(item.title, systemImage: item.systemImage)
+        }
+        .accessibilityHint(item.subtitle)
     }
 
     @ViewBuilder
@@ -134,6 +147,8 @@ struct ContentView: View {
             archiveWorkspace
         case .exportCatalog, .copyFiles, .trashFiles:
             FileManagementView(model: fileManagementModel, destination: selectedDestination)
+        case .hashVerification:
+            HashToolView(model: hashModel)
         }
     }
 
@@ -152,6 +167,19 @@ struct ContentView: View {
                     }
                     .disabled(model.isWorking)
                     .help("清空所选项目")
+                }
+            } else if selectedDestination == .hashVerification {
+                Button(action: hashModel.chooseFiles) {
+                    Label("添加文件", systemImage: "plus")
+                }
+                .disabled(hashModel.isWorking)
+                .help("添加要计算 Hash 的文件")
+                if !hashModel.selectedURLs.isEmpty {
+                    Button(action: hashModel.clear) {
+                        Label("清空", systemImage: "xmark.circle")
+                    }
+                    .disabled(hashModel.isWorking)
+                    .help("清空文件和结果")
                 }
             }
         }
@@ -191,6 +219,10 @@ struct ContentView: View {
             }
             if model.selectedURLs.isEmpty {
                 archiveDropZone
+            } else if selectedDestination == .extract,
+                      model.selectedURLs.count == 1,
+                      model.selectedURLs.first.map(ArchiveUtilities.looksLikeArchive) == true {
+                archiveContentsPreview
             } else {
                 selectedFilesList
             }
@@ -275,6 +307,88 @@ struct ContentView: View {
         } isTargeted: { dropTargeted = $0 }
     }
 
+    private var archiveContentsPreview: some View {
+        VStack(spacing: 0) {
+            if let archive = model.selectedURLs.first {
+                HStack(spacing: 10) {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: archive.path))
+                        .resizable()
+                        .frame(width: 28, height: 28)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(archive.lastPathComponent)
+                            .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                        Text(model.isLoadingArchiveContents
+                             ? "正在读取目录…"
+                             : "\(model.archiveEntries.count) 个项目")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(action: model.refreshArchiveContents) {
+                        Label("重新读取", systemImage: "arrow.clockwise")
+                    }
+                    .labelStyle(.iconOnly)
+                    .disabled(model.isLoadingArchiveContents || model.isWorking)
+                    .help("重新读取归档内容")
+                }
+                .padding(12)
+            }
+            Divider()
+            if model.isLoadingArchiveContents {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("正在读取归档中的文件…")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let message = model.archivePreviewError {
+                MacEmptyState(
+                    title: "无法读取归档内容",
+                    message: "\(message)\n如果归档已加密，请在右侧输入密码后重新读取。",
+                    systemImage: "lock.trianglebadge.exclamationmark",
+                    actionTitle: "重新读取",
+                    action: model.refreshArchiveContents
+                )
+            } else if model.archiveEntries.isEmpty {
+                MacEmptyState(
+                    title: "归档为空",
+                    message: "这个归档中没有可显示的文件。",
+                    systemImage: "archivebox"
+                )
+            } else {
+                Table(model.archiveEntries) {
+                    TableColumn("名称") { entry in
+                        Label(entry.displayName, systemImage: entry.directory ? "folder" : "doc")
+                            .lineLimit(1)
+                    }
+                    TableColumn("所在目录") { entry in
+                        Text(entry.parentPath)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    TableColumn("大小") { entry in
+                        Text(entry.formattedSize)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    .width(min: 72, ideal: 90)
+                }
+            }
+        }
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor))
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            model.accept(urls: urls)
+            return true
+        } isTargeted: { dropTargeted = $0 }
+    }
+
     private var archiveOptionsPanel: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -336,10 +450,22 @@ struct ContentView: View {
                             }
                         }
                     }
+                    settingsSection("文件") {
+                        Toggle("排除 macOS 元数据", isOn: $model.excludeMacOSMetadata)
+                            .help("排除 .DS_Store、._*、__MACOSX 等系统生成文件")
+                        Text("普通点文件（如 .gitignore）仍会保留。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 settingsSection("安全") {
                     SecureField(selectedDestination == .extract ? "归档密码（如需要）" : "密码（可选）", text: $model.password)
                         .textFieldStyle(.roundedBorder)
+                        .onSubmit {
+                            if selectedDestination == .extract {
+                                model.refreshArchiveContents()
+                            }
+                        }
                     if selectedDestination == .compress, model.format == .tar, !model.password.isEmpty {
                         Label("TAR 不支持密码保护", systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)
@@ -424,6 +550,25 @@ struct ContentView: View {
     }
 }
 
+private extension ArchiveEntry {
+    var displayName: String {
+        let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return (trimmedPath as NSString).lastPathComponent
+    }
+
+    var parentPath: String {
+        let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let parent = (trimmedPath as NSString).deletingLastPathComponent
+        return parent.isEmpty ? "—" : parent
+    }
+
+    var formattedSize: String {
+        guard !directory else { return "—" }
+        let byteCount = Int64(clamping: size)
+        return ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file)
+    }
+}
+
 struct TaskHeader: View {
     let title: String
     let subtitle: String
@@ -454,6 +599,8 @@ struct MacEmptyState: View {
     let title: String
     let message: String
     let systemImage: String
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 11) {
@@ -467,6 +614,10 @@ struct MacEmptyState: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 360)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.bordered)
+            }
         }
         .foregroundStyle(.secondary)
         .padding(30)

@@ -6,7 +6,7 @@
 #include "SevenZipBridge.h"
 
 typedef int (*CompressFunction)(const char *, const char *, const char *,
-    const char *const *, size_t, const char *, int, uint64_t,
+    const char *const *, size_t, const char *, int, uint64_t, int,
     SZProgressCallback, SZCancelCallback, void *);
 typedef int (*ExtractFunction)(const char *, const char *, const char *, const char *,
     SZProgressCallback, SZCancelCallback, void *);
@@ -38,7 +38,7 @@ int main(int argc, char **argv)
   const char *inputs[] = { argv[3] };
   uint64_t dictionarySize = strcmp(argv[6], "7z") == 0 ? 16ULL * 1024 * 1024 : 0;
   int result = compress(argv[2], argv[4], argv[6], inputs, 1, password, 5,
-      dictionarySize, NULL, NULL, NULL);
+      dictionarySize, 1, NULL, NULL, NULL);
   if (result != 0) {
     fprintf(stderr, "compress: %s (%d)\n", lastError(), result);
     return 67;
