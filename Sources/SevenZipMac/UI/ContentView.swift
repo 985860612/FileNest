@@ -78,6 +78,8 @@ struct ContentView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 900, minHeight: 580)
+        .toolbarBackground(Color(nsColor: .windowBackgroundColor), for: .windowToolbar)
+        .toolbarBackground(.visible, for: .windowToolbar)
         .toolbar { toolbarContent }
         .alert("操作失败", isPresented: Binding(
             get: { model.errorMessage != nil },
