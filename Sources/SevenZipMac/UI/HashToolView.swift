@@ -14,10 +14,10 @@ struct HashToolView: View {
             Divider()
             HStack(spacing: 0) {
                 filePanel
-                    .frame(minWidth: 440, maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(minWidth: 380, maxWidth: .infinity, maxHeight: .infinity)
                 Divider()
                 settingsPanel
-                    .frame(width: 340)
+                    .frame(width: 300)
                     .frame(maxHeight: .infinity)
             }
             Divider()
