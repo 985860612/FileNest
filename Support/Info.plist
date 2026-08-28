@@ -45,7 +45,7 @@
                 <string>tar</string><string>gz</string><string>tgz</string>
                 <string>bz2</string><string>tbz2</string><string>xz</string>
                 <string>txz</string><string>cab</string><string>iso</string>
-                <string>wim</string><string>zst</string>
+                <string>wim</string><string>zst</string><string>001</string>
             </array>
         </dict>
     </array>
@@ -75,4 +75,3 @@
     </array>
 </dict>
 </plist>
-
