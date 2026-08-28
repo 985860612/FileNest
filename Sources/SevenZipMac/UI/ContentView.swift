@@ -7,6 +7,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
     case exportCatalog
     case copyFiles
     case trashFiles
+    case hashVerification
 
     var id: String { rawValue }
 
@@ -17,6 +18,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .exportCatalog: "导出文件目录"
         case .copyFiles: "批量复制文件"
         case .trashFiles: "移到废纸篓"
+        case .hashVerification: "Hash 校验"
         }
     }
 
@@ -27,6 +29,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .exportCatalog: "扫描文件夹并生成 XLSX 目录清单"
         case .copyFiles: "按 Excel 中的源路径和目标路径复制文件"
         case .trashFiles: "按 Excel 路径预览并安全移除文件"
+        case .hashVerification: "计算并验证文件的 MD5、SHA-1、SHA-256 或 SHA-512"
         }
     }
 
@@ -37,6 +40,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .exportCatalog: "tablecells"
         case .copyFiles: "doc.on.doc"
         case .trashFiles: "trash"
+        case .hashVerification: "checkmark.shield"
         }
     }
 
@@ -53,6 +57,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
 struct ContentView: View {
     @ObservedObject var model: WorkspaceModel
     @StateObject private var fileManagementModel = FileManagementWorkspaceModel()
+    @StateObject private var hashModel = HashWorkspaceModel()
     @State private var destination: AppDestination? = .extract
     @State private var dropTargeted = false
 
@@ -94,6 +99,8 @@ struct ContentView: View {
         case .compress: model.mode = .compress
         case .exportCatalog, .copyFiles, .trashFiles:
             if let mode = destination.fileManagementMode { fileManagementModel.mode = mode }
+        case .hashVerification:
+            break
         }
     }
 
@@ -107,6 +114,9 @@ struct ContentView: View {
                 sidebarRow(.exportCatalog)
                 sidebarRow(.copyFiles)
                 sidebarRow(.trashFiles)
+            }
+            Section("工具") {
+                sidebarRow(.hashVerification)
             }
         }
         .listStyle(.sidebar)
@@ -137,6 +147,8 @@ struct ContentView: View {
             archiveWorkspace
         case .exportCatalog, .copyFiles, .trashFiles:
             FileManagementView(model: fileManagementModel, destination: selectedDestination)
+        case .hashVerification:
+            HashToolView(model: hashModel)
         }
     }
 
@@ -155,6 +167,19 @@ struct ContentView: View {
                     }
                     .disabled(model.isWorking)
                     .help("清空所选项目")
+                }
+            } else if selectedDestination == .hashVerification {
+                Button(action: hashModel.chooseFiles) {
+                    Label("添加文件", systemImage: "plus")
+                }
+                .disabled(hashModel.isWorking)
+                .help("添加要计算 Hash 的文件")
+                if !hashModel.selectedURLs.isEmpty {
+                    Button(action: hashModel.clear) {
+                        Label("清空", systemImage: "xmark.circle")
+                    }
+                    .disabled(hashModel.isWorking)
+                    .help("清空文件和结果")
                 }
             }
         }
