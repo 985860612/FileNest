@@ -71,7 +71,7 @@ struct ContentView: View {
                 .navigationTitle("SevenZip Mac")
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 980, minHeight: 640)
+        .frame(minWidth: 900, minHeight: 580)
         .toolbar { toolbarContent }
         .alert("操作失败", isPresented: Binding(
             get: { model.errorMessage != nil },
@@ -121,7 +121,7 @@ struct ContentView: View {
         }
         .listStyle(.sidebar)
         .navigationTitle("SevenZip Mac")
-        .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 270)
+        .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
         .safeAreaInset(edge: .bottom) {
             Label("所有处理均在本机完成", systemImage: "lock.shield")
                 .font(.caption)
@@ -194,10 +194,10 @@ struct ContentView: View {
             Divider()
             HStack(spacing: 0) {
                 fileSelectionPanel
-                    .frame(minWidth: 430, maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(minWidth: 380, maxWidth: .infinity, maxHeight: .infinity)
                 Divider()
                 archiveOptionsPanel
-                    .frame(width: 340)
+                    .frame(width: 300)
                     .frame(maxHeight: .infinity)
             }
             Divider()
@@ -585,7 +585,8 @@ struct TaskHeader: View {
             }
             Spacer()
         }
-        .padding(.horizontal, 20)
+        .padding(.leading, 17)
+        .padding(.trailing, 20)
         .padding(.vertical, 15)
     }
 }
