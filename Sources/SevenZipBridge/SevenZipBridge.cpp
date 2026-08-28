@@ -1509,7 +1509,7 @@ extern "C" int sz_extract(const char *libraryPath, const char *archivePath,
 
 extern "C" int sz_compress(const char *libraryPath, const char *archivePath,
     const char *format, const char *const *inputPaths, size_t inputCount,
-    const char *password, int compressionLevel,
+    const char *password, int compressionLevel, uint64_t dictionarySize,
     SZProgressCallback progress, SZCancelCallback shouldCancel, void *context)
 {
   g_LastError.clear();
@@ -1554,11 +1554,24 @@ extern "C" int sz_compress(const char *libraryPath, const char *archivePath,
     if (compressionLevel < 0) compressionLevel = 0;
     if (compressionLevel > 9) compressionLevel = 9;
     {
-      const wchar_t *names[] = { L"x" };
-      NCOM::CPropVariant values[] = { (UInt32)compressionLevel };
+      const wchar_t *names[] = { L"x", L"d" };
+      UInt32 dictionaryLog = 0;
+      uint64_t remainingDictionarySize = dictionarySize;
+      while (remainingDictionarySize > 1 && (remainingDictionarySize & 1) == 0)
+      {
+        remainingDictionarySize >>= 1;
+        dictionaryLog++;
+      }
+      if (dictionarySize > 0 && remainingDictionarySize != 1)
+      {
+        SetLastError("Dictionary size must be a power of two");
+        return 8;
+      }
+      NCOM::CPropVariant values[] = { (UInt32)compressionLevel, dictionaryLog };
+      const UInt32 propertyCount = dictionarySize > 0 ? 2 : 1;
       CMyComPtr<ISetProperties> properties;
       archive->QueryInterface(IID_ISetProperties, (void **)&properties);
-      if (properties && properties->SetProperties(names, values, 1) != S_OK)
+      if (properties && properties->SetProperties(names, values, propertyCount) != S_OK)
       {
         SetLastError("7-Zip rejected the compression settings");
         return 8;

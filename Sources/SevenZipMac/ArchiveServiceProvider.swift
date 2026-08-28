@@ -67,6 +67,8 @@ import Foundation
                 format: format,
                 password: "",
                 level: 5,
+                dictionarySize: 0,
+                volumeSize: 0,
                 cancellation: ArchiveCancellation(),
                 progress: { _ in }
             )

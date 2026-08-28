@@ -9,6 +9,9 @@ final class WorkspaceModel: ObservableObject {
     @Published var format: ArchiveFormat = .sevenZip
     @Published var password = ""
     @Published var compressionLevel = 5.0
+    @Published var dictionarySize: CompressionDictionarySize = .automatic
+    @Published var volumePreset: ArchiveVolumePreset = .none
+    @Published var customVolumeMegabytes = 100
     @Published var isWorking = false
     @Published var progressFraction: Double?
     @Published var currentPath = ""
@@ -30,7 +33,17 @@ final class WorkspaceModel: ObservableObject {
         }
     }
 
-    var canStart: Bool { !selectedURLs.isEmpty && !isWorking }
+    var canStart: Bool {
+        !selectedURLs.isEmpty
+            && !isWorking
+            && (volumePreset != .custom || (1...1_048_576).contains(customVolumeMegabytes))
+    }
+
+    var volumeSize: UInt64 { volumePreset.bytes(customMegabytes: customVolumeMegabytes) }
+
+    var effectiveDictionarySize: UInt64 {
+        format == .sevenZip ? dictionarySize.rawValue : 0
+    }
 
     var actionTitle: String {
         switch mode {
@@ -88,6 +101,8 @@ final class WorkspaceModel: ObservableObject {
         let password = password
         let selectedFormat = format
         let level = Int(compressionLevel)
+        let dictionarySize = effectiveDictionarySize
+        let volumeSize = volumeSize
         let engine = engine
         let selectedMode = mode
 
@@ -110,17 +125,25 @@ final class WorkspaceModel: ObservableObject {
                     }
                     output = lastOutput
                 case .compress:
-                    let destination = ArchiveUtilities.archiveDestination(for: inputs, format: selectedFormat)
+                    let destination = ArchiveUtilities.archiveDestination(
+                        for: inputs,
+                        format: selectedFormat,
+                        volumeSize: volumeSize
+                    )
                     try engine.compress(
                         inputs: inputs,
                         to: destination,
                         format: selectedFormat,
                         password: password,
                         level: level,
+                        dictionarySize: dictionarySize,
+                        volumeSize: volumeSize,
                         cancellation: token,
                         progress: Self.progressHandler(for: self)
                     )
-                    output = destination
+                    output = volumeSize > 0
+                        ? ArchiveVolumeUtilities.firstVolumeURL(for: destination)
+                        : destination
                 }
                 DispatchQueue.main.async {
                     self?.finishSuccessfully(output: output)
@@ -169,4 +192,3 @@ final class WorkspaceModel: ObservableObject {
 extension Notification.Name {
     static let sevenZipMacOpenURLs = Notification.Name("SevenZipMacOpenURLs")
 }
-

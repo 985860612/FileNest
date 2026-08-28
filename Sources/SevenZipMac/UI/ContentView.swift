@@ -1,23 +1,30 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+private enum ApplicationSection: String, CaseIterable, Identifiable {
+    case archive = "压缩解压"
+    case files = "Excel 文件管理"
+
+    var id: String { rawValue }
+}
+
 struct ContentView: View {
     @ObservedObject var model: WorkspaceModel
+    @StateObject private var fileManagementModel = FileManagementWorkspaceModel()
+    @State private var section: ApplicationSection = .archive
     @State private var dropTargeted = false
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            HStack(spacing: 20) {
-                selectionPanel
-                optionsPanel
+            if section == .archive {
+                archiveWorkspace
+            } else {
+                FileManagementView(model: fileManagementModel)
             }
-            .padding(22)
-            Divider()
-            footer
         }
-        .frame(minWidth: 760, minHeight: 520)
+        .frame(minWidth: 820, minHeight: 580)
         .background(Color(nsColor: .windowBackgroundColor))
         .alert("操作失败", isPresented: Binding(
             get: { model.errorMessage != nil },
@@ -42,17 +49,29 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Picker("模式", selection: $model.mode) {
-                ForEach(WorkspaceMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
+            Picker("功能", selection: $section) {
+                ForEach(ApplicationSection.allCases) { section in
+                    Text(section.rawValue).tag(section)
                 }
             }
             .pickerStyle(.segmented)
-            .frame(width: 190)
-            .disabled(model.isWorking)
+            .frame(width: 300)
+            .disabled(model.isWorking || fileManagementModel.isWorking)
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 16)
+    }
+
+    private var archiveWorkspace: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 20) {
+                selectionPanel
+                optionsPanel
+            }
+            .padding(22)
+            Divider()
+            footer
+        }
     }
 
     private var selectionPanel: some View {
@@ -138,6 +157,14 @@ struct ContentView: View {
 
     private var optionsPanel: some View {
         Form {
+            Section("模式") {
+                Picker("模式", selection: $model.mode) {
+                    ForEach(WorkspaceMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
             Section("选项") {
                 if model.mode == .compress {
                     Picker("格式", selection: $model.format) {
@@ -155,6 +182,35 @@ struct ContentView: View {
                     Text("压缩等级：\(Int(model.compressionLevel))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Picker("字典大小", selection: $model.dictionarySize) {
+                        ForEach(CompressionDictionarySize.allCases) { size in
+                            Text(size.displayName).tag(size)
+                        }
+                    }
+                    .disabled(model.format != .sevenZip)
+                    if model.format != .sevenZip {
+                        Text("字典大小仅适用于 7z")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Picker("分卷大小", selection: $model.volumePreset) {
+                        ForEach(ArchiveVolumePreset.allCases) { preset in
+                            Text(preset.displayName).tag(preset)
+                        }
+                    }
+                    if model.volumePreset == .custom {
+                        HStack {
+                            TextField("大小", value: $model.customVolumeMegabytes, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                            Text("MB")
+                                .foregroundStyle(.secondary)
+                        }
+                        if !(1...1_048_576).contains(model.customVolumeMegabytes) {
+                            Text("请输入 1–1,048,576 MB")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
                 }
                 SecureField(model.mode == .extract ? "密码（如需要）" : "密码（可选）", text: $model.password)
                     .textFieldStyle(.roundedBorder)
@@ -173,7 +229,7 @@ struct ContentView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 280)
+        .frame(width: 300)
         .disabled(model.isWorking)
     }
 

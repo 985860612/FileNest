@@ -13,7 +13,7 @@ private typealias CExtractFunction = @convention(c) (
 private typealias CCompressFunction = @convention(c) (
     UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafePointer<CChar>?,
     UnsafePointer<UnsafePointer<CChar>?>?, Int,
-    UnsafePointer<CChar>?, Int32,
+    UnsafePointer<CChar>?, Int32, UInt64,
     CProgressCallback?, CCancelCallback?, UnsafeMutableRawPointer?
 ) -> Int32
 private typealias CListFunction = @convention(c) (
@@ -83,10 +83,16 @@ final class ArchiveEngine: @unchecked Sendable {
         cancellation: ArchiveCancellation,
         progress: @escaping @Sendable (ArchiveProgress) -> Void
     ) throws {
+        let prepared = try ArchiveVolumeUtilities.prepareForReading(
+            archive,
+            cancellation: cancellation,
+            progress: progress
+        )
+        defer { prepared.cleanUp() }
         let box = CallbackBox(cancellation: cancellation, progress: progress)
         let context = Unmanaged.passUnretained(box).toOpaque()
         let result = enginePath.withCString { engine in
-            archive.path.withCString { archivePath in
+            prepared.url.path.withCString { archivePath in
                 destination.path.withCString { destinationPath in
                     password.withCString { passwordPointer in
                         extractFunction(
@@ -107,6 +113,8 @@ final class ArchiveEngine: @unchecked Sendable {
         format: ArchiveFormat,
         password: String,
         level: Int,
+        dictionarySize: UInt64,
+        volumeSize: UInt64,
         cancellation: ArchiveCancellation,
         progress: @escaping @Sendable (ArchiveProgress) -> Void
     ) throws {
@@ -127,7 +135,8 @@ final class ArchiveEngine: @unchecked Sendable {
                                 engine, destinationPath, formatPointer,
                                 buffer.baseAddress, buffer.count,
                                 password.isEmpty ? nil : passwordPointer,
-                                Int32(level), progressTrampoline, cancelTrampoline, context
+                                Int32(level), dictionarySize,
+                                progressTrampoline, cancelTrampoline, context
                             )
                         }
                     }
@@ -135,11 +144,30 @@ final class ArchiveEngine: @unchecked Sendable {
             }
         }
         guard result == 0 else { throw ArchiveEngineError.operationFailed(lastError()) }
+        if volumeSize > 0 {
+            do {
+                try ArchiveVolumeUtilities.split(
+                    archive: destination,
+                    volumeSize: volumeSize,
+                    cancellation: cancellation,
+                    progress: progress
+                )
+            } catch {
+                try? FileManager.default.removeItem(at: destination)
+                throw error
+            }
+        }
     }
 
     func list(archive: URL, password: String = "") throws -> [ArchiveEntry] {
+        let prepared = try ArchiveVolumeUtilities.prepareForReading(
+            archive,
+            cancellation: ArchiveCancellation(),
+            progress: { _ in }
+        )
+        defer { prepared.cleanUp() }
         let pointer = enginePath.withCString { engine in
-            archive.path.withCString { archivePath in
+            prepared.url.path.withCString { archivePath in
                 password.withCString { passwordPointer in
                     listFunction(engine, archivePath, password.isEmpty ? nil : passwordPointer)
                 }

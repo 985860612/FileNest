@@ -18,3 +18,10 @@ import Testing
     let output = ArchiveUtilities.archiveDestination(for: [input], format: .sevenZip)
     #expect(output.lastPathComponent == "Project.7z")
 }
+
+@Test func derivesExtractionFolderFromFirstVolume() {
+    let archive = URL(fileURLWithPath: "/tmp/backup.7z.001")
+    #expect(ArchiveUtilities.extractionFolder(for: archive).path == "/tmp/backup")
+    #expect(ArchiveUtilities.looksLikeArchive(archive))
+    #expect(!ArchiveUtilities.looksLikeArchive(URL(fileURLWithPath: "/tmp/backup.7z.002")))
+}

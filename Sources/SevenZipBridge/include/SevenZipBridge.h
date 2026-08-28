@@ -32,6 +32,7 @@ int sz_compress(const char *library_path,
                 size_t input_count,
                 const char *password,
                 int compression_level,
+                uint64_t dictionary_size,
                 SZProgressCallback progress,
                 SZCancelCallback should_cancel,
                 void *context);
