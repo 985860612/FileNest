@@ -6,7 +6,7 @@ struct SevenZipMacApp: App {
     @StateObject private var model = WorkspaceModel()
 
     var body: some Scene {
-        WindowGroup {
+        Window("SevenZip Mac", id: "main") {
             ContentView(model: model)
         }
         .windowStyle(.titleBar)
