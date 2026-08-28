@@ -46,7 +46,9 @@ struct HashToolView: View {
                 resultsTable
             }
         }
-        .padding(20)
+        .padding(.leading, WorkspaceLayout.leadingInset)
+        .padding(.trailing, WorkspaceLayout.trailingInset)
+        .padding(.vertical, WorkspaceLayout.verticalInset)
     }
 
     private var dropZone: some View {
@@ -224,7 +226,8 @@ struct HashToolView: View {
                     .disabled(!model.canCalculate)
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.leading, WorkspaceLayout.leadingInset)
+        .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 13)
         .background(.bar)
     }

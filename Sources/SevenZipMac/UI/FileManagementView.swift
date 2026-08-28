@@ -12,7 +12,9 @@ struct FileManagementView: View {
             )
             Divider()
             controls
-                .padding(20)
+                .padding(.leading, WorkspaceLayout.leadingInset)
+                .padding(.trailing, WorkspaceLayout.trailingInset)
+                .padding(.vertical, WorkspaceLayout.verticalInset)
             Divider()
             preview
             Divider()
@@ -257,7 +259,8 @@ struct FileManagementView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 20)
+        .padding(.leading, WorkspaceLayout.leadingInset)
+        .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 11)
         .background(.bar)
     }

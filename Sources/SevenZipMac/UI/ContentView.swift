@@ -1,6 +1,12 @@
 import AppKit
 import SwiftUI
 
+enum WorkspaceLayout {
+    static let leadingInset: CGFloat = 17
+    static let trailingInset: CGFloat = 20
+    static let verticalInset: CGFloat = 20
+}
+
 enum AppDestination: String, CaseIterable, Identifiable {
     case extract
     case compress
@@ -228,7 +234,9 @@ struct ContentView: View {
                 selectedFilesList
             }
         }
-        .padding(20)
+        .padding(.leading, WorkspaceLayout.leadingInset)
+        .padding(.trailing, WorkspaceLayout.trailingInset)
+        .padding(.vertical, WorkspaceLayout.verticalInset)
     }
 
     private var archiveDropZone: some View {
@@ -545,7 +553,8 @@ struct ContentView: View {
                 }
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.leading, WorkspaceLayout.leadingInset)
+        .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 13)
         .background(.bar)
     }
@@ -585,8 +594,8 @@ struct TaskHeader: View {
             }
             Spacer()
         }
-        .padding(.leading, 17)
-        .padding(.trailing, 20)
+        .padding(.leading, WorkspaceLayout.leadingInset)
+        .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 15)
     }
 }
