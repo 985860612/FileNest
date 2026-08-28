@@ -2,16 +2,24 @@ import SwiftUI
 
 struct FileManagementView: View {
     @ObservedObject var model: FileManagementWorkspaceModel
+    let destination: AppDestination
 
     var body: some View {
         VStack(spacing: 0) {
+            TaskHeader(
+                title: destination.title,
+                subtitle: destination.subtitle,
+                systemImage: destination.systemImage
+            )
+            Divider()
             controls
                 .padding(20)
             Divider()
             preview
             Divider()
-            footer
+            statusBar
         }
+        .background(Color(nsColor: .windowBackgroundColor))
         .alert("操作失败", isPresented: Binding(
             get: { model.errorMessage != nil },
             set: { if !$0 { model.errorMessage = nil } }
@@ -28,16 +36,9 @@ struct FileManagementView: View {
         }
     }
 
+    @ViewBuilder
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Picker("操作", selection: $model.mode) {
-                ForEach(FileManagementMode.allCases) { mode in
-                    Label(mode.rawValue, systemImage: mode.systemImage).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .disabled(model.isWorking)
-
+        VStack(alignment: .leading, spacing: 14) {
             switch model.mode {
             case .export:
                 exportControls
@@ -47,38 +48,68 @@ struct FileManagementView: View {
                 workbookControls(copying: false)
             }
         }
+        .padding(16)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor))
+        }
     }
 
     private var exportControls: some View {
-        HStack(spacing: 12) {
-            pathLabel(model.directoryURL?.path ?? "尚未选择目录")
-            Button("选择目录…", action: model.chooseDirectory)
-            Toggle("包含子目录", isOn: $model.recursively)
-                .toggleStyle(.checkbox)
-            Button("导出 XLSX…", action: model.exportDirectory)
-                .buttonStyle(.borderedProminent)
-                .disabled(model.directoryURL == nil || model.isWorking)
+        VStack(alignment: .leading, spacing: 13) {
+            Text("扫描来源")
+                .font(.headline)
+            HStack(spacing: 10) {
+                sourcePath(
+                    model.directoryURL?.path,
+                    placeholder: "选择需要生成目录清单的文件夹",
+                    systemImage: "folder"
+                )
+                Button("选择文件夹…", action: model.chooseDirectory)
+                    .disabled(model.isWorking)
+            }
+            HStack {
+                Toggle("包含子文件夹", isOn: $model.recursively)
+                    .toggleStyle(.checkbox)
+                    .disabled(model.isWorking)
+                Spacer()
+                Button("导出 XLSX…", action: model.exportDirectory)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(model.directoryURL == nil || model.isWorking)
+            }
         }
     }
 
     private func workbookControls(copying: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                pathLabel(model.workbookURL?.path ?? "尚未选择 Excel 文件")
-                Button("选择 XLSX…", action: model.chooseWorkbook)
+        VStack(alignment: .leading, spacing: 13) {
+            Text("Excel 数据源")
+                .font(.headline)
+            HStack(spacing: 10) {
+                sourcePath(
+                    model.workbookURL?.path,
+                    placeholder: "选择包含文件路径的 XLSX 工作簿",
+                    systemImage: "tablecells"
+                )
+                Button("选择 Excel…", action: model.chooseWorkbook)
+                    .disabled(model.isWorking)
             }
-            HStack(spacing: 14) {
+            HStack(alignment: .bottom, spacing: 14) {
                 if copying {
                     columnPicker("源文件列", selection: $model.sourceColumn)
+                    Image(systemName: "arrow.right")
+                        .foregroundStyle(.tertiary)
+                        .padding(.bottom, 7)
                     columnPicker("目标文件列", selection: $model.destinationColumn)
                 } else {
                     columnPicker("文件路径列", selection: $model.pathColumn)
                 }
                 Spacer()
-                Button("预览操作", action: model.preview)
+                Button("预览", action: model.preview)
                     .disabled(model.sheet == nil || model.isWorking)
                 if copying {
-                    Button("执行复制", action: model.executeCopy)
+                    Button("复制文件", action: model.executeCopy)
                         .buttonStyle(.borderedProminent)
                         .disabled(model.operations.isEmpty || model.isWorking)
                 } else {
@@ -89,84 +120,124 @@ struct FileManagementView: View {
         }
     }
 
-    private func columnPicker(_ title: String, selection: Binding<XLSXColumn?>) -> some View {
-        Picker(title, selection: selection) {
-            Text("请选择").tag(nil as XLSXColumn?)
-            ForEach(model.columns) { column in
-                Text(column.title).tag(Optional(column))
-            }
+    private func sourcePath(_ path: String?, placeholder: String, systemImage: String) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: systemImage)
+                .foregroundStyle(path == nil ? .tertiary : .secondary)
+            Text(path ?? placeholder)
+                .foregroundStyle(path == nil ? .secondary : .primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: 240)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor))
+        }
     }
 
-    private func pathLabel(_ path: String) -> some View {
-        Text(path)
-            .font(.callout)
-            .foregroundStyle(path.hasPrefix("尚未") ? .secondary : .primary)
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+    private func columnPicker(_ title: String, selection: Binding<XLSXColumn?>) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Picker(title, selection: selection) {
+                Text("请选择").tag(nil as XLSXColumn?)
+                ForEach(model.columns) { column in
+                    Text(column.title).tag(Optional(column))
+                }
+            }
+            .labelsHidden()
+            .frame(minWidth: 150)
+        }
     }
 
     @ViewBuilder
     private var preview: some View {
         if model.mode == .export {
-            Table(model.catalogEntries) {
-                TableColumn("文件名") { entry in Text(entry.fileName) }
-                TableColumn("扩展名") { entry in Text(entry.fileExtension) }.width(80)
-                TableColumn("大小(KB)") { entry in Text(entry.sizeInKilobytes) }.width(90)
-                TableColumn("完整路径") { entry in Text(entry.fullPath).lineLimit(1) }
+            if model.catalogEntries.isEmpty, !model.isWorking {
+                MacEmptyState(
+                    title: "尚未导出目录",
+                    message: "选择文件夹并导出后，扫描到的文件会显示在这里。",
+                    systemImage: "tablecells"
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Table(model.catalogEntries) {
+                    TableColumn("文件名") { entry in
+                        Label(entry.fileName, systemImage: entry.fileExtension.isEmpty ? "doc" : "doc.fill")
+                            .lineLimit(1)
+                    }
+                    TableColumn("扩展名") { entry in Text(entry.fileExtension) }
+                        .width(80)
+                    TableColumn("大小") { entry in Text("\(entry.sizeInKilobytes) KB").monospacedDigit() }
+                        .width(105)
+                    TableColumn("完整路径") { entry in
+                        Text(entry.fullPath)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
             }
-            .overlay { emptyOverlay(text: "导出后在这里显示扫描结果") }
         } else if model.mode == .copy {
-            Table(model.operations) {
-                TableColumn("源文件") { item in
-                    Text(item.sourcePath).lineLimit(1)
+            if model.operations.isEmpty, !model.isWorking {
+                operationsEmptyState
+            } else {
+                Table(model.operations) {
+                    TableColumn("源文件") { item in
+                        Text(item.sourcePath).lineLimit(1).truncationMode(.middle)
+                    }
+                    TableColumn("目标文件") { item in
+                        Text(item.destinationPath ?? "").lineLimit(1).truncationMode(.middle)
+                    }
+                    TableColumn("状态") { item in operationState(item.state) }
+                        .width(min: 110, ideal: 150)
                 }
-                TableColumn("目标文件") { item in
-                    Text(item.destinationPath ?? "").lineLimit(1)
-                }
-                TableColumn("状态") { item in
-                    Text(item.state.label)
-                        .foregroundStyle(item.state == .success ? .green : .secondary)
-                        .lineLimit(1)
-                }
-                .width(min: 100, ideal: 150)
             }
-            .overlay { emptyOverlay(text: "选择 Excel、指定列，然后预览操作") }
         } else {
-            Table(model.operations) {
-                TableColumn("文件路径") { item in
-                    Text(item.sourcePath).lineLimit(1)
+            if model.operations.isEmpty, !model.isWorking {
+                operationsEmptyState
+            } else {
+                Table(model.operations) {
+                    TableColumn("文件路径") { item in
+                        Text(item.sourcePath).lineLimit(1).truncationMode(.middle)
+                    }
+                    TableColumn("状态") { item in operationState(item.state) }
+                        .width(min: 110, ideal: 150)
                 }
-                TableColumn("状态") { item in
-                    Text(item.state.label)
-                        .foregroundStyle(item.state == .success ? .green : .secondary)
-                        .lineLimit(1)
-                }
-                .width(min: 100, ideal: 150)
             }
-            .overlay { emptyOverlay(text: "选择 Excel、指定列，然后预览操作") }
         }
     }
 
     @ViewBuilder
-    private func emptyOverlay(text: String) -> some View {
-        if (model.mode == .export ? model.catalogEntries.isEmpty : model.operations.isEmpty), !model.isWorking {
-            VStack(spacing: 10) {
-                Image(systemName: model.mode.systemImage)
-                    .font(.system(size: 36, weight: .light))
-                Text(text)
-            }
-            .foregroundStyle(.secondary)
+    private var operationsEmptyState: some View {
+        if model.operations.isEmpty, !model.isWorking {
+            MacEmptyState(
+                title: "先预览，再执行",
+                message: "选择 Excel 工作簿和对应表头列，应用会先检查每一条路径。",
+                systemImage: model.mode.systemImage
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
-    private var footer: some View {
-        VStack(spacing: 8) {
+    private func operationState(_ state: FileOperationState) -> some View {
+        let appearance: (String, Color) = switch state {
+        case .ready: ("circle", .secondary)
+        case .success: ("checkmark.circle.fill", .green)
+        case .missing, .invalid: ("exclamationmark.triangle.fill", .orange)
+        case .failed: ("xmark.circle.fill", .red)
+        }
+        return Label(state.label, systemImage: appearance.0)
+            .foregroundStyle(appearance.1)
+            .lineLimit(1)
+    }
+
+    private var statusBar: some View {
+        VStack(spacing: 7) {
             if model.isWorking {
                 if let fraction = model.progressFraction {
                     ProgressView(value: fraction)
@@ -177,15 +248,18 @@ struct FileManagementView: View {
             HStack {
                 Text(model.statusMessage)
                 Spacer()
-                Text(model.currentPath)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: 440, alignment: .trailing)
+                if !model.currentPath.isEmpty {
+                    Text(model.currentPath)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: 430, alignment: .trailing)
+                }
             }
             .font(.caption)
             .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.vertical, 11)
+        .background(.bar)
     }
 }
