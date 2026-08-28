@@ -193,11 +193,13 @@ struct ContentView: View {
                 systemImage: selectedDestination.systemImage
             )
             Divider()
-            HSplitView {
+            HStack(spacing: 0) {
                 fileSelectionPanel
                     .frame(minWidth: 430, maxWidth: .infinity, maxHeight: .infinity)
+                Divider()
                 archiveOptionsPanel
-                    .frame(minWidth: 310, idealWidth: 330, maxWidth: 380, maxHeight: .infinity)
+                    .frame(width: 340)
+                    .frame(maxHeight: .infinity)
             }
             Divider()
             archiveStatusBar

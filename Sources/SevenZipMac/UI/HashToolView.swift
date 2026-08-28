@@ -13,11 +13,13 @@ struct HashToolView: View {
                 systemImage: "checkmark.shield"
             )
             Divider()
-            HSplitView {
+            HStack(spacing: 0) {
                 filePanel
-                    .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(minWidth: 440, maxWidth: .infinity, maxHeight: .infinity)
+                Divider()
                 settingsPanel
-                    .frame(minWidth: 280, idealWidth: 320, maxWidth: 380, maxHeight: .infinity)
+                    .frame(width: 340)
+                    .frame(maxHeight: .infinity)
             }
             Divider()
             statusBar
