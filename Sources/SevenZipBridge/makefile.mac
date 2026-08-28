@@ -1,0 +1,4 @@
+include ../../var_mac_$(MAC_ARCH).mak
+include ../../warn_clang_mac.mak
+include makefile.sevenzip-mac.gcc
+
