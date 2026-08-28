@@ -9,8 +9,7 @@ struct HashToolView: View {
         VStack(spacing: 0) {
             TaskHeader(
                 title: "Hash 校验",
-                subtitle: "计算并验证文件的 MD5、SHA-1、SHA-256 或 SHA-512",
-                systemImage: "checkmark.shield"
+                subtitle: "计算并验证文件的 MD5、SHA-1、SHA-256 或 SHA-512"
             )
             Divider()
             HStack(spacing: 0) {
