@@ -8,8 +8,7 @@ struct FileManagementView: View {
         VStack(spacing: 0) {
             TaskHeader(
                 title: destination.title,
-                subtitle: destination.subtitle,
-                systemImage: destination.systemImage
+                subtitle: destination.subtitle
             )
             Divider()
             controls

@@ -118,10 +118,10 @@ final class HashWorkspaceModel: ObservableObject {
         results = []
         statusMessage = "正在计算 \(algorithm.rawValue)…"
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        Task.detached(priority: .userInitiated) { [weak self, files, algorithm] in
             var calculated: [FileHashResult] = []
             for file in files {
-                DispatchQueue.main.async { self?.currentFileName = file.lastPathComponent }
+                await self?.updateCurrentFileName(file.lastPathComponent)
                 do {
                     calculated.append(FileHashResult(
                         url: file,
@@ -132,16 +132,22 @@ final class HashWorkspaceModel: ObservableObject {
                     calculated.append(FileHashResult(url: file, digest: nil, errorMessage: error.localizedDescription))
                 }
             }
-            DispatchQueue.main.async {
-                self?.results = calculated
-                self?.isWorking = false
-                self?.currentFileName = ""
-                let failures = calculated.filter { $0.digest == nil }.count
-                self?.statusMessage = failures == 0
-                    ? "已完成 \(calculated.count) 个文件"
-                    : "完成，\(failures) 个文件计算失败"
-            }
+            await self?.finishCalculation(with: calculated)
         }
+    }
+
+    private func updateCurrentFileName(_ fileName: String) {
+        currentFileName = fileName
+    }
+
+    private func finishCalculation(with calculated: [FileHashResult]) {
+        results = calculated
+        isWorking = false
+        currentFileName = ""
+        let failures = calculated.filter { $0.digest == nil }.count
+        statusMessage = failures == 0
+            ? "已完成 \(calculated.count) 个文件"
+            : "完成，\(failures) 个文件计算失败"
     }
 
     func verificationState(for result: FileHashResult) -> HashVerificationState {

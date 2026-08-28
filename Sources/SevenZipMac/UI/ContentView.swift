@@ -189,8 +189,7 @@ struct ContentView: View {
         VStack(spacing: 0) {
             TaskHeader(
                 title: selectedDestination.title,
-                subtitle: selectedDestination.subtitle,
-                systemImage: selectedDestination.systemImage
+                subtitle: selectedDestination.subtitle
             )
             Divider()
             HStack(spacing: 0) {
@@ -574,15 +573,9 @@ private extension ArchiveEntry {
 struct TaskHeader: View {
     let title: String
     let subtitle: String
-    let systemImage: String
 
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: systemImage)
-                .font(.system(size: 25, weight: .medium))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 34)
+        HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.title2.weight(.semibold))
