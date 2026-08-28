@@ -6,7 +6,12 @@ import UniformTypeIdentifiers
 @MainActor
 final class FileManagementWorkspaceModel: ObservableObject {
     @Published var mode: FileManagementMode = .export {
-        didSet { if mode != oldValue { operations = [] } }
+        didSet {
+            if mode != oldValue {
+                operations = []
+                if !isWorking { statusMessage = mode.idleMessage }
+            }
+        }
     }
     @Published var directoryURL: URL?
     @Published var recursively = true
@@ -227,5 +232,15 @@ final class FileManagementWorkspaceModel: ObservableObject {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd_HHmmss"
         return formatter.string(from: Date())
+    }
+}
+
+private extension FileManagementMode {
+    var idleMessage: String {
+        switch self {
+        case .export: "选择要扫描的文件夹"
+        case .copy: "选择包含源路径和目标路径的 Excel"
+        case .trash: "选择包含文件路径的 Excel"
+        }
     }
 }

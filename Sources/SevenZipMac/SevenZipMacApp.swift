@@ -10,7 +10,8 @@ struct SevenZipMacApp: App {
             ContentView(model: model)
         }
         .windowStyle(.titleBar)
-        .defaultSize(width: 820, height: 560)
+        .windowToolbarStyle(.unified(showsTitle: true))
+        .defaultSize(width: 1_080, height: 720)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("添加文件…") { model.chooseFiles() }
