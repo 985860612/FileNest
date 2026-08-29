@@ -580,6 +580,7 @@ struct ContentView: View {
             .font(.subheadline.weight(.semibold))
             content()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(13)
         .background(FileNestTheme.panelBackground, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         .overlay {
