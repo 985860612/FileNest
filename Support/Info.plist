@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>zh_CN</string>
     <key>CFBundleDisplayName</key>
-    <string>SevenZip Mac</string>
+    <string>文件台</string>
     <key>CFBundleExecutable</key>
     <string>SevenZipMac</string>
     <key>CFBundleIconFile</key>
@@ -15,7 +15,7 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>SevenZip Mac</string>
+    <string>文件台</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -53,7 +53,7 @@
     <array>
         <dict>
             <key>NSMenuItem</key>
-            <dict><key>default</key><string>使用 SevenZip Mac 查看归档</string></dict>
+            <dict><key>default</key><string>使用“文件台”查看压缩包</string></dict>
             <key>NSMessage</key><string>browseArchive</string>
             <key>NSPortName</key><string>SevenZipMac</string>
             <key>NSRequiredContext</key>

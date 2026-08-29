@@ -1,6 +1,6 @@
-# SevenZip Mac
+# FileNest（文件台）
 
-原生 macOS 压缩与解压工具。应用直接加载 7-Zip SDK 26.02，通过 C ABI 在进程内执行归档操作，不启动 `7z`、`7zz` 或其他命令行子进程。
+面向 macOS 的本地文件工作台，提供压缩解压、归档浏览、Excel 文件管理与 Hash 校验。应用直接加载 7-Zip SDK 26.02，通过 C ABI 在进程内执行归档操作，不启动 `7z`、`7zz` 或其他命令行子进程。
 
 ## 功能
 
@@ -30,7 +30,7 @@ RAR 仅支持读取和解压，不支持创建。
 
 ```bash
 ./scripts/build-app.sh
-open "dist/SevenZip Mac.app"
+open "dist/文件台.app"
 ```
 
 构建脚本会下载官方 7-Zip 26.02 源码包，校验 SHA-256，分别编译 arm64 与 x86_64 的全格式 `Format7zF` 动态库及桥接层，再组装并临时签名应用。第三方源码与构建产物只保存在 `.build/`，不会提交到仓库。
@@ -39,9 +39,9 @@ open "dist/SevenZip Mac.app"
 
 ## Finder 右键菜单
 
-1. 把 `SevenZip Mac.app` 移到 `/Applications`。
+1. 把 `文件台.app` 移到 `/Applications`。
 2. 启动一次应用。
-3. 在 Finder 选择文件后打开右键菜单，在“快速操作”或“服务”中选择 SevenZip Mac 操作。
+3. 在 Finder 选择文件后打开右键菜单，在“快速操作”或“服务”中选择“文件台”操作。
 4. 如果菜单未显示，到“系统设置 → 键盘 → 键盘快捷键 → 服务 → 文件与文件夹”启用对应项目。
 
 Finder 服务默认使用无密码和标准压缩等级。需要密码或其他设置时使用主窗口。
@@ -92,4 +92,4 @@ SwiftUI / AppKit / Finder Services
 
 ## 许可
 
-SevenZip Mac 的 Swift 应用代码采用 MIT License。7-Zip 核心及派生桥接层遵循 GNU LGPL；RAR 解码代码还受 unRAR 限制。完整声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 和 [`ThirdParty/7zip/`](ThirdParty/7zip/)。
+FileNest 的 Swift 应用代码采用 MIT License。7-Zip 核心及派生桥接层遵循 GNU LGPL；RAR 解码代码还受 unRAR 限制。完整声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 和 [`ThirdParty/7zip/`](ThirdParty/7zip/)。
