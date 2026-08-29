@@ -6,7 +6,7 @@ English · [简体中文](README.md)
 [![Universal 2](https://img.shields.io/badge/Universal%202-Apple%20silicon%20%2B%20Intel-2867df)](https://github.com/985860612/FileNest/releases/latest)
 [![MIT License](https://img.shields.io/badge/license-MIT-15845d)](LICENSE)
 
-A native file workspace for macOS with archive creation, extraction and browsing, Finder actions, Excel-based file management, and hash verification. FileNest loads the 7-Zip SDK 26.02 in process through a C ABI. It never launches `7z`, `7zz`, or another archive command-line process.
+A native file workspace for macOS with archive creation, extraction and browsing, local NCM audio recovery, Finder actions, Excel-based file management, and hash verification. FileNest loads the 7-Zip SDK 26.02 in process through a C ABI. It never launches `7z`, `7zz`, or another archive command-line process.
 
 [Product website](https://985860612.github.io/FileNest/en/) · [Download](https://github.com/985860612/FileNest/releases/latest) · [Report an issue](https://github.com/985860612/FileNest/issues)
 
@@ -20,6 +20,7 @@ A native file workspace for macOS with archive creation, extraction and browsing
 - Finder actions for extraction, 7z/ZIP creation, and XLSX folder-inventory export
 - Exclude `.DS_Store`, `._*`, `__MACOSX`, and related macOS metadata by default
 - Compute and verify MD5, SHA-1, SHA-256, and SHA-512 locally
+- Restore the original MP3/FLAC stream from NCM files locally and in batches, without uploads or re-encoding; preserve title, artist, album, and cover metadata
 - Export XLSX inventories, batch-copy paths, or move matching files to the macOS Trash
 - Live progress, current-file reporting, cancellation, path-traversal protection, and transactional archive output
 - Universal 2 support for Apple silicon and Intel Macs
@@ -63,12 +64,13 @@ SEVENZIP_ENGINE_INTEGRATION=1 swift test
 ./scripts/build-app.sh
 ```
 
-Architecture: `SwiftUI / AppKit / Finder Services → ArchiveEngine → libsevenzipbridge.dylib → 7-Zip Format7zF`.
+Architecture: `SwiftUI / AppKit / Finder Services → ArchiveEngine / NCMConversionService → 7-Zip SDK / CommonCrypto`.
 
 ## Privacy and security
 
 - No network access, file uploads, telemetry, or administrator privileges
 - No shell or archive command-line invocation
+- NCM conversion only restores audio already present in the source file; process files you are authorized to use
 - Absolute and parent-directory archive paths are rejected
 - Archive outputs move from `.partial` only after successful completion
 - Finder extraction creates a new sibling folder by default to avoid overwriting existing files

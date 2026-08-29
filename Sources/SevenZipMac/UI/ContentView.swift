@@ -15,6 +15,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
     case renameFiles
     case trashFiles
     case hashVerification
+    case ncmConversion
 
     var id: String { rawValue }
 
@@ -27,6 +28,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .renameFiles: "批量重命名文件"
         case .trashFiles: "移到废纸篓"
         case .hashVerification: "Hash 校验"
+        case .ncmConversion: "NCM 转换"
         }
     }
 
@@ -39,6 +41,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .renameFiles: "按 Excel 中的文件路径和新文件名批量重命名"
         case .trashFiles: "按 Excel 路径预览并安全移除文件"
         case .hashVerification: "计算并验证文件的 MD5、SHA-1、SHA-256 或 SHA-512"
+        case .ncmConversion: "在本机恢复 NCM 中的原始 MP3 或 FLAC 音频"
         }
     }
 
@@ -51,6 +54,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .renameFiles: "pencil"
         case .trashFiles: "trash.fill"
         case .hashVerification: "checkmark.shield.fill"
+        case .ncmConversion: "music.note.list"
         }
     }
 
@@ -62,6 +66,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .renameFiles: FileNestTheme.orange
         case .trashFiles: FileNestTheme.red
         case .hashVerification: FileNestTheme.violet
+        case .ncmConversion: FileNestTheme.orange
         }
     }
 
@@ -82,6 +87,7 @@ struct ContentView: View {
     @ObservedObject var model: WorkspaceModel
     @StateObject private var fileManagementModel = FileManagementWorkspaceModel()
     @StateObject private var hashModel = HashWorkspaceModel()
+    @StateObject private var ncmModel = NCMWorkspaceModel()
     @State private var destination: AppDestination? = .extract
     @State private var dropTargeted = false
     @State private var isSidebarVisible = true
@@ -148,6 +154,8 @@ struct ContentView: View {
             if let mode = destination.fileManagementMode { fileManagementModel.mode = mode }
         case .hashVerification:
             break
+        case .ncmConversion:
+            break
         }
     }
 
@@ -157,7 +165,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     sidebarSection("归档", items: [.extract, .compress])
                     sidebarSection("Excel 文件管理", items: [.exportCatalog, .copyFiles, .renameFiles, .trashFiles])
-                    sidebarSection("工具", items: [.hashVerification])
+                    sidebarSection("工具", items: [.hashVerification, .ncmConversion])
                 }
                 .padding(.horizontal, 10)
                 .padding(.top, 14)
@@ -228,6 +236,8 @@ struct ContentView: View {
             FileManagementView(model: fileManagementModel, destination: selectedDestination)
         case .hashVerification:
             HashToolView(model: hashModel)
+        case .ncmConversion:
+            NCMConverterView(model: ncmModel)
         }
     }
 
@@ -265,6 +275,19 @@ struct ContentView: View {
                     }
                     .disabled(hashModel.isWorking)
                     .help("清空文件和结果")
+                }
+            } else if selectedDestination == .ncmConversion {
+                Button(action: ncmModel.chooseFiles) {
+                    Label("添加 NCM", systemImage: "plus")
+                }
+                .disabled(ncmModel.isWorking)
+                .help("添加 NCM 文件或文件夹")
+                if !ncmModel.items.isEmpty {
+                    Button(action: ncmModel.clear) {
+                        Label("清空", systemImage: "xmark.circle")
+                    }
+                    .disabled(ncmModel.isWorking)
+                    .help("清空文件和转换结果")
                 }
             }
         }
