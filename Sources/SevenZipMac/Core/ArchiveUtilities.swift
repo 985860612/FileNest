@@ -7,18 +7,34 @@ enum ArchiveUtilities {
     ]
 
     static func looksLikeArchive(_ url: URL) -> Bool {
-        readableExtensions.contains(url.pathExtension.lowercased()) || ArchiveVolumeUtilities.isFirstVolume(url)
+        readableExtensions.contains(url.pathExtension.lowercased())
+            || hasNumericCopySuffix(url.lastPathComponent)
+            || ArchiveVolumeUtilities.isFirstVolume(url)
     }
 
     static func extractionFolder(for archive: URL) -> URL {
         let source = ArchiveVolumeUtilities.isFirstVolume(archive) ? archive.deletingPathExtension() : archive
         let parent = source.deletingLastPathComponent()
-        var stem = source.deletingPathExtension().lastPathComponent
-        if ["gz", "bz2", "xz"].contains(source.pathExtension.lowercased()),
+        let normalizedName = removingNumericCopySuffix(source.lastPathComponent)
+        let normalizedSource = parent.appendingPathComponent(normalizedName)
+        var stem = normalizedSource.deletingPathExtension().lastPathComponent
+        if ["gz", "bz2", "xz"].contains(normalizedSource.pathExtension.lowercased()),
            stem.lowercased().hasSuffix(".tar") {
             stem = String(stem.dropLast(4))
         }
         return uniqueURL(parent.appendingPathComponent(stem, isDirectory: true))
+    }
+
+    private static func hasNumericCopySuffix(_ name: String) -> Bool {
+        let normalized = removingNumericCopySuffix(name)
+        return normalized != name && readableExtensions.contains((normalized as NSString).pathExtension.lowercased())
+    }
+
+    private static func removingNumericCopySuffix(_ name: String) -> String {
+        guard let separator = name.lastIndex(of: " ") else { return name }
+        let suffix = name[name.index(after: separator)...]
+        guard !suffix.isEmpty, suffix.allSatisfy(\.isNumber) else { return name }
+        return String(name[..<separator])
     }
 
     static func archiveDestination(
