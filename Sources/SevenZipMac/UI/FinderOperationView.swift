@@ -351,6 +351,11 @@ struct FinderOperationView: View {
                 }
                 if model.isWorking {
                     Button("取消", action: model.cancel)
+                } else if model.isBrowseOnly, model.resultURLs.isEmpty {
+                    Button("解压…", action: model.extractFromBrowser)
+                        .buttonStyle(.borderedProminent)
+                        .fileNestFormControl()
+                        .keyboardShortcut(.return, modifiers: [.command])
                 } else if !model.isBrowseOnly, model.resultURLs.isEmpty {
                     Button(model.actionTitle, action: model.start)
                         .buttonStyle(.borderedProminent)
@@ -363,7 +368,8 @@ struct FinderOperationView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 5)
+        .frame(minHeight: FileNestTheme.statusBarHeight)
         .background(FileNestTheme.panelBackground)
     }
 

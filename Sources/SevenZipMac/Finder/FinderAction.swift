@@ -17,7 +17,7 @@ enum FinderAction: Sendable, Equatable {
         switch self {
         case .compress: "设置参数后开始压缩"
         case .extract: "确认内容与目标位置后开始解压"
-        case .browse: "只读取归档目录，不会解压文件"
+        case .browse: "浏览归档内容，需要时可选择位置解压"
         }
     }
 

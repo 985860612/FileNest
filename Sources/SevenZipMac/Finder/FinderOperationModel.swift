@@ -55,8 +55,7 @@ final class FinderOperationModel: ObservableObject {
         return false
     }
     var canStart: Bool {
-        !isBrowseOnly
-            && !selectedURLs.isEmpty
+        !selectedURLs.isEmpty
             && !isWorking
             && (volumePreset != .custom || (1...1_048_576).contains(customVolumeMegabytes))
             && !(isCompression && format == .tar && !password.isEmpty)
@@ -89,13 +88,22 @@ final class FinderOperationModel: ObservableObject {
     }
 
     func chooseDestination() {
+        _ = updateDestinationFromPanel()
+    }
+
+    func extractFromBrowser() {
+        guard isBrowseOnly, !isWorking, updateDestinationFromPanel() else { return }
+        start()
+    }
+
+    private func updateDestinationFromPanel() -> Bool {
         if isCompression {
             let panel = NSSavePanel()
             panel.canCreateDirectories = true
             panel.prompt = "选择"
             panel.nameFieldStringValue = destinationURL.lastPathComponent
             panel.directoryURL = destinationURL.deletingLastPathComponent()
-            guard panel.runModal() == .OK, let url = panel.url else { return }
+            guard panel.runModal() == .OK, let url = panel.url else { return false }
             destinationURL = url.pathExtension.isEmpty ? url.appendingPathExtension(format.fileExtension) : url
         } else {
             let panel = NSOpenPanel()
@@ -105,11 +113,12 @@ final class FinderOperationModel: ObservableObject {
             panel.allowsMultipleSelection = false
             panel.prompt = "选择"
             panel.directoryURL = destinationURL.deletingLastPathComponent()
-            guard panel.runModal() == .OK, let url = panel.url else { return }
+            guard panel.runModal() == .OK, let url = panel.url else { return false }
             destinationURL = selectedURLs.count == 1
                 ? url.appendingPathComponent(Self.defaultExtractionName(for: selectedURLs[0]), isDirectory: true)
                 : url
         }
+        return true
     }
 
     func loadContents() {
@@ -174,7 +183,7 @@ final class FinderOperationModel: ObservableObject {
                     outputs = [volumeSize > 0
                         ? ArchiveVolumeUtilities.firstVolumeURL(for: destination)
                         : destination]
-                case .extract:
+                case .extract, .browse:
                     var extracted: [URL] = []
                     for (index, archive) in inputs.enumerated() {
                         let output = Self.extractionDestination(
@@ -192,8 +201,6 @@ final class FinderOperationModel: ObservableObject {
                         extracted.append(output)
                     }
                     outputs = extracted
-                case .browse:
-                    return
                 }
                 await self?.finishSuccessfully(outputs: outputs)
             } catch {
