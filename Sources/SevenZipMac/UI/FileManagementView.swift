@@ -8,7 +8,9 @@ struct FileManagementView: View {
         VStack(spacing: 0) {
             TaskHeader(
                 title: destination.title,
-                subtitle: destination.subtitle
+                subtitle: destination.subtitle,
+                systemImage: destination.systemImage,
+                tint: destination.tint
             )
             Divider()
             controls
@@ -20,7 +22,7 @@ struct FileManagementView: View {
             Divider()
             statusBar
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(FileNestTheme.workspaceBackground)
         .alert("操作失败", isPresented: Binding(
             get: { model.errorMessage != nil },
             set: { if !$0 { model.errorMessage = nil } }
@@ -50,10 +52,10 @@ struct FileManagementView: View {
             }
         }
         .padding(16)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .background(FileNestTheme.panelBackground, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(Color(nsColor: .separatorColor))
+                .strokeBorder(FileNestTheme.border)
         }
     }
 
