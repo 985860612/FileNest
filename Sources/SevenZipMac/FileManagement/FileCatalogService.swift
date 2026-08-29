@@ -3,6 +3,41 @@ import Foundation
 enum FileCatalogService {
     static let spreadsheetHeaders = ["完整路径", "所在目录", "文件名", "扩展名", "大小(KB)"]
 
+    static func export(
+        directory: URL,
+        to destination: URL,
+        engine: ArchiveEngine = .shared,
+        progress: @escaping @Sendable (_ completed: Int, _ currentPath: String) -> Void = { _, _ in }
+    ) throws -> [FileCatalogEntry] {
+        let entries = try scan(directory: directory, recursively: true, progress: progress)
+        try XLSXDocument.write(
+            headers: spreadsheetHeaders,
+            rows: entries.map(\.spreadsheetRow),
+            to: destination,
+            engine: engine
+        )
+        return entries
+    }
+
+    static func desktopExportURL(
+        for directory: URL,
+        desktop: URL,
+        date: Date = Date(),
+        fileManager: FileManager = .default
+    ) -> URL {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        let baseName = "文件目录_\(directory.lastPathComponent)_\(formatter.string(from: date))"
+        var destination = desktop.appendingPathComponent("\(baseName).xlsx")
+        var suffix = 2
+        while fileManager.fileExists(atPath: destination.path) {
+            destination = desktop.appendingPathComponent("\(baseName)_\(suffix).xlsx")
+            suffix += 1
+        }
+        return destination
+    }
+
     static func scan(
         directory: URL,
         recursively: Bool,
