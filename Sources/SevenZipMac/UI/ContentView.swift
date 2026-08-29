@@ -153,7 +153,7 @@ struct ContentView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 14)
-                .frame(height: 54)
+                .frame(height: FileNestTheme.statusBarHeight)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(FileNestTheme.panelBackground)
         }
@@ -646,6 +646,7 @@ struct ContentView: View {
         .padding(.leading, WorkspaceLayout.leadingInset)
         .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 13)
+        .frame(minHeight: FileNestTheme.statusBarHeight)
         .background(FileNestTheme.panelBackground)
     }
 }

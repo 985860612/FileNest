@@ -237,6 +237,7 @@ struct HashToolView: View {
         .padding(.leading, WorkspaceLayout.leadingInset)
         .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 13)
+        .frame(minHeight: FileNestTheme.statusBarHeight)
         .background(FileNestTheme.panelBackground)
     }
 

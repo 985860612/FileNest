@@ -3,6 +3,7 @@ import SwiftUI
 
 enum FileNestTheme {
     static let formControlHeight: CGFloat = 34
+    static let statusBarHeight: CGFloat = 54
     static let accent = Color(red: 0.25, green: 0.49, blue: 0.89)
     static let teal = Color(red: 0.12, green: 0.58, blue: 0.57)
     static let green = Color(red: 0.20, green: 0.58, blue: 0.38)

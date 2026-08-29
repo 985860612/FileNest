@@ -270,6 +270,7 @@ struct FileManagementView: View {
         .padding(.leading, WorkspaceLayout.leadingInset)
         .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 11)
+        .frame(minHeight: FileNestTheme.statusBarHeight)
         .background(FileNestTheme.panelBackground)
     }
 }
