@@ -37,8 +37,12 @@ final class FinderOperationWindowController: NSObject, NSWindowDelegate {
         NSApp.windows
             .filter { $0 !== window && $0.title == "文件台" }
             .forEach { $0.orderOut(nil) }
-        NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async {
+            NSApp.unhide(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+        }
     }
 
     func windowWillClose(_ notification: Notification) {
