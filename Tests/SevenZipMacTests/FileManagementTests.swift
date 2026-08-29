@@ -21,6 +21,30 @@ struct FileManagementTests {
         #expect(recursive.first?.fileExtension == "pdf")
     }
 
+    @Test("Desktop export names avoid replacing an existing workbook")
+    func desktopExportNamesAvoidCollisions() throws {
+        let desktop = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: desktop) }
+        let directory = URL(fileURLWithPath: "/tmp/项目资料", isDirectory: true)
+        let date = Date(timeIntervalSince1970: 0)
+        let first = FileCatalogService.desktopExportURL(
+            for: directory,
+            desktop: desktop,
+            date: date
+        )
+        #expect(first.lastPathComponent.hasPrefix("文件目录_项目资料_"))
+        #expect(first.pathExtension == "xlsx")
+
+        try Data().write(to: first)
+        let second = FileCatalogService.desktopExportURL(
+            for: directory,
+            desktop: desktop,
+            date: date
+        )
+        #expect(second.deletingPathExtension().lastPathComponent ==
+            first.deletingPathExtension().lastPathComponent + "_2")
+    }
+
     @Test("Copy preview validates paths and execution preserves the source")
     func copyPreviewAndExecution() throws {
         let root = temporaryDirectory()

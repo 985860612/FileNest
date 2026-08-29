@@ -45,6 +45,43 @@ import Foundation
         present(FinderActionRequest(action: .browse, urls: [archive]))
     }
 
+    @MainActor @objc func exportFolderCatalog(
+        _ pasteboard: NSPasteboard,
+        userData: String,
+        error: AutoreleasingUnsafeMutablePointer<NSString?>
+    ) {
+        guard let urls = fileURLs(from: pasteboard), urls.count == 1,
+              let directory = urls.first, isDirectory(directory) else {
+            error.pointee = "请选择一个文件夹" as NSString
+            return
+        }
+
+        guard let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first else {
+            error.pointee = "无法访问桌面目录" as NSString
+            return
+        }
+
+        let destination = FileCatalogService.desktopExportURL(for: directory, desktop: desktop)
+        NSApp.hide(nil)
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                _ = try FileCatalogService.export(directory: directory, to: destination)
+                DispatchQueue.main.async {
+                    NSWorkspace.shared.activateFileViewerSelecting([destination])
+                }
+            } catch {
+                let message = error.localizedDescription
+                DispatchQueue.main.async {
+                    let alert = NSAlert()
+                    alert.alertStyle = .warning
+                    alert.messageText = "文件列表导出失败"
+                    alert.informativeText = message
+                    alert.runModal()
+                }
+            }
+        }
+    }
+
     private func presentCompression(
         _ pasteboard: NSPasteboard,
         format: ArchiveFormat,
@@ -70,6 +107,10 @@ import Foundation
             return nil
         }
         return paths.map { URL(fileURLWithPath: $0) }
+    }
+
+    private func isDirectory(_ url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
     }
 
     private func present(_ request: FinderActionRequest) {
