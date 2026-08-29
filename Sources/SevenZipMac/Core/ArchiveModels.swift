@@ -1,5 +1,9 @@
 import Foundation
 
+enum CompressionDefaults {
+    static let level = 6.0
+}
+
 enum ArchiveFormat: String, CaseIterable, Identifiable, Sendable {
     case sevenZip = "7z"
     case zip

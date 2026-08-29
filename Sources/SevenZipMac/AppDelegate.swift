@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let urls = pendingURLs
             pendingURLs.removeAll()
             DispatchQueue.main.async {
-                NotificationCenter.default.post(name: .sevenZipMacOpenURLs, object: urls)
+                self.routeOpenedURLs(urls)
             }
         }
     }
@@ -21,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         if hasFinishedLaunching {
             DispatchQueue.main.async {
-                NotificationCenter.default.post(name: .sevenZipMacOpenURLs, object: urls)
+                self.routeOpenedURLs(urls)
             }
         } else {
             pendingURLs.append(contentsOf: urls)
@@ -30,5 +30,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    @MainActor
+    private func routeOpenedURLs(_ urls: [URL]) {
+        if urls.count == 1, let archive = urls.first, ArchiveUtilities.looksLikeArchive(archive) {
+            FinderOperationWindowController.shared.present(
+                FinderActionRequest(action: .browse, urls: [archive])
+            )
+        } else {
+            NotificationCenter.default.post(name: .sevenZipMacOpenURLs, object: urls)
+        }
     }
 }

@@ -8,7 +8,7 @@ final class WorkspaceModel: ObservableObject {
     @Published var selectedURLs: [URL] = []
     @Published var format: ArchiveFormat = .sevenZip
     @Published var password = ""
-    @Published var compressionLevel = 5.0
+    @Published var compressionLevel = CompressionDefaults.level
     @Published var dictionarySize: CompressionDictionarySize = .automatic
     @Published var volumePreset: ArchiveVolumePreset = .none
     @Published var customVolumeMegabytes = 100
