@@ -77,6 +77,50 @@ struct FileManagementTests {
         #expect(String(data: try Data(contentsOf: destination), encoding: .utf8) == "hello")
     }
 
+    @Test("Rename preview validates names and execution moves files in place")
+    func renamePreviewAndExecution() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("before.txt")
+        let collisionSource = root.appendingPathComponent("collision-source.txt")
+        let duplicateSourceA = root.appendingPathComponent("duplicate-a.txt")
+        let duplicateSourceB = root.appendingPathComponent("duplicate-b.txt")
+        let existing = root.appendingPathComponent("existing.txt")
+        for file in [source, collisionSource, duplicateSourceA, duplicateSourceB, existing] {
+            try Data(file.lastPathComponent.utf8).write(to: file)
+        }
+        let sheet = XLSXSheet(
+            columns: [XLSXColumn(index: 0, title: "文件路径"), XLSXColumn(index: 1, title: "新文件名")],
+            rows: [
+                [source.path, "after.txt"],
+                [collisionSource.path, "existing.txt"],
+                [duplicateSourceA.path, "same.txt"],
+                [duplicateSourceB.path, "same.txt"],
+                [root.appendingPathComponent("missing.txt").path, "missing-new.txt"],
+                [source.path, "nested/name.txt"]
+            ]
+        )
+
+        let preview = FileOperationService.renamePreview(
+            sheet: sheet,
+            pathColumn: sheet.columns[0],
+            nameColumn: sheet.columns[1]
+        )
+        #expect(preview[0].state == .ready)
+        #expect(preview[1].state == .invalid("目标已存在"))
+        #expect(preview[2].state == .invalid("目标名称重复"))
+        #expect(preview[3].state == .invalid("目标名称重复"))
+        #expect(preview[4].state == .missing)
+        #expect(preview[5].state == .invalid("新文件名无效"))
+
+        let (results, summary) = FileOperationService.executeRenames(preview)
+        let renamed = root.appendingPathComponent("after.txt")
+        #expect(results[0].state == .success)
+        #expect(summary.succeeded == 1)
+        #expect(!FileManager.default.fileExists(atPath: source.path))
+        #expect(FileManager.default.fileExists(atPath: renamed.path))
+    }
+
     @Test("Extracted XLSX supports shared strings, inline strings and duplicate headers")
     func readsExtractedWorkbook() throws {
         let root = temporaryDirectory()

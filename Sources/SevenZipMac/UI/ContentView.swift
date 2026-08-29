@@ -12,6 +12,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
     case compress
     case exportCatalog
     case copyFiles
+    case renameFiles
     case trashFiles
     case hashVerification
 
@@ -23,6 +24,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .compress: "创建归档"
         case .exportCatalog: "导出文件目录"
         case .copyFiles: "批量复制文件"
+        case .renameFiles: "批量重命名文件"
         case .trashFiles: "移到废纸篓"
         case .hashVerification: "Hash 校验"
         }
@@ -34,6 +36,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .compress: "创建加密归档、调整字典并按大小分卷"
         case .exportCatalog: "扫描文件夹并生成 XLSX 目录清单"
         case .copyFiles: "按 Excel 中的源路径和目标路径复制文件"
+        case .renameFiles: "按 Excel 中的文件路径和新文件名批量重命名"
         case .trashFiles: "按 Excel 路径预览并安全移除文件"
         case .hashVerification: "计算并验证文件的 MD5、SHA-1、SHA-256 或 SHA-512"
         }
@@ -45,6 +48,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .compress: "tray.and.arrow.up.fill"
         case .exportCatalog: "tablecells.fill"
         case .copyFiles: "doc.on.doc.fill"
+        case .renameFiles: "pencil"
         case .trashFiles: "trash.fill"
         case .hashVerification: "checkmark.shield.fill"
         }
@@ -55,6 +59,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .extract, .compress: FileNestTheme.accent
         case .exportCatalog: FileNestTheme.green
         case .copyFiles: FileNestTheme.teal
+        case .renameFiles: FileNestTheme.orange
         case .trashFiles: FileNestTheme.red
         case .hashVerification: FileNestTheme.violet
         }
@@ -64,6 +69,7 @@ enum AppDestination: String, CaseIterable, Identifiable {
         switch self {
         case .exportCatalog: .export
         case .copyFiles: .copy
+        case .renameFiles: .rename
         case .trashFiles: .trash
         default: nil
         }
@@ -130,7 +136,7 @@ struct ContentView: View {
             model.mode = .extract
             model.refreshArchiveContents()
         case .compress: model.mode = .compress
-        case .exportCatalog, .copyFiles, .trashFiles:
+        case .exportCatalog, .copyFiles, .renameFiles, .trashFiles:
             if let mode = destination.fileManagementMode { fileManagementModel.mode = mode }
         case .hashVerification:
             break
@@ -142,7 +148,7 @@ struct ContentView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     sidebarSection("归档", items: [.extract, .compress])
-                    sidebarSection("Excel 文件管理", items: [.exportCatalog, .copyFiles, .trashFiles])
+                    sidebarSection("Excel 文件管理", items: [.exportCatalog, .copyFiles, .renameFiles, .trashFiles])
                     sidebarSection("工具", items: [.hashVerification])
                 }
                 .padding(.horizontal, 10)
@@ -210,7 +216,7 @@ struct ContentView: View {
         switch selectedDestination {
         case .extract, .compress:
             archiveWorkspace
-        case .exportCatalog, .copyFiles, .trashFiles:
+        case .exportCatalog, .copyFiles, .renameFiles, .trashFiles:
             FileManagementView(model: fileManagementModel, destination: selectedDestination)
         case .hashVerification:
             HashToolView(model: hashModel)

@@ -3,6 +3,7 @@ import Foundation
 enum FileManagementMode: String, CaseIterable, Identifiable {
     case export = "导出目录"
     case copy = "批量复制"
+    case rename = "批量重命名"
     case trash = "移到废纸篓"
 
     var id: String { rawValue }
@@ -11,6 +12,7 @@ enum FileManagementMode: String, CaseIterable, Identifiable {
         switch self {
         case .export: "tablecells"
         case .copy: "doc.on.doc"
+        case .rename: "pencil"
         case .trash: "trash"
         }
     }

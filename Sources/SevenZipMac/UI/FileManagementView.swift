@@ -37,6 +37,12 @@ struct FileManagementView: View {
         } message: {
             Text("将处理预览中的 \(model.operations.filter(\.state.isExecutable).count) 个文件。文件可以从废纸篓恢复。")
         }
+        .alert("确认批量重命名", isPresented: $model.showsRenameConfirmation) {
+            Button("取消", role: .cancel) {}
+            Button("重命名", action: model.executeRename)
+        } message: {
+            Text("将重命名预览中 \(model.operations.filter(\.state.isExecutable).count) 个文件。执行前请确认新文件名和扩展名。")
+        }
     }
 
     @ViewBuilder
@@ -45,10 +51,10 @@ struct FileManagementView: View {
             switch model.mode {
             case .export:
                 exportControls
-            case .copy:
-                workbookControls(copying: true)
+            case .copy, .rename:
+                workbookControls(twoColumns: true)
             case .trash:
-                workbookControls(copying: false)
+                workbookControls(twoColumns: false)
             }
         }
         .padding(16)
@@ -86,7 +92,7 @@ struct FileManagementView: View {
         }
     }
 
-    private func workbookControls(copying: Bool) -> some View {
+    private func workbookControls(twoColumns: Bool) -> some View {
         VStack(alignment: .leading, spacing: 13) {
             Text("Excel 数据源")
                 .font(.headline)
@@ -101,12 +107,12 @@ struct FileManagementView: View {
                     .fileNestFormControl()
             }
             HStack(alignment: .bottom, spacing: 14) {
-                if copying {
-                    columnPicker("源文件列", selection: $model.sourceColumn)
+                if twoColumns {
+                    columnPicker(model.mode == .rename ? "文件路径列" : "源文件列", selection: $model.sourceColumn)
                     Image(systemName: "arrow.right")
                         .foregroundStyle(.tertiary)
                         .padding(.bottom, 7)
-                    columnPicker("目标文件列", selection: $model.destinationColumn)
+                    columnPicker(model.mode == .rename ? "新文件名列（含扩展名）" : "目标文件列", selection: $model.destinationColumn)
                 } else {
                     columnPicker("文件路径列", selection: $model.pathColumn)
                 }
@@ -114,10 +120,15 @@ struct FileManagementView: View {
                 Button("预览", action: model.preview)
                     .disabled(model.sheet == nil || model.isWorking)
                     .fileNestFormControl()
-                if copying {
+                if model.mode == .copy {
                     Button("复制文件", action: model.executeCopy)
                         .buttonStyle(.borderedProminent)
                         .disabled(model.operations.isEmpty || model.isWorking)
+                        .fileNestFormControl()
+                } else if model.mode == .rename {
+                    Button("批量重命名", action: model.requestRename)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!model.operations.contains(where: \.state.isExecutable) || model.isWorking)
                         .fileNestFormControl()
                 } else {
                     Button("移到废纸篓", role: .destructive, action: model.requestTrash)
@@ -191,15 +202,15 @@ struct FileManagementView: View {
                     }
                 }
             }
-        } else if model.mode == .copy {
+        } else if model.mode == .copy || model.mode == .rename {
             if model.operations.isEmpty, !model.isWorking {
                 operationsEmptyState
             } else {
                 Table(model.operations) {
-                    TableColumn("源文件") { item in
+                    TableColumn(model.mode == .rename ? "原文件" : "源文件") { item in
                         Text(item.sourcePath).lineLimit(1).truncationMode(.middle)
                     }
-                    TableColumn("目标文件") { item in
+                    TableColumn(model.mode == .rename ? "重命名为" : "目标文件") { item in
                         Text(item.destinationPath ?? "").lineLimit(1).truncationMode(.middle)
                     }
                     TableColumn("状态") { item in operationState(item.state) }
