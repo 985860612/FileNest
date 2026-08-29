@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let serviceProvider = ArchiveServiceProvider()
     private var pendingURLs: [URL] = []
@@ -12,17 +13,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !pendingURLs.isEmpty {
             let urls = pendingURLs
             pendingURLs.removeAll()
-            DispatchQueue.main.async {
-                self.routeOpenedURLs(urls)
-            }
+            hideMainWindowIfOpeningArchive(urls)
+            routeOpenedURLs(urls)
         }
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
         if hasFinishedLaunching {
-            DispatchQueue.main.async {
-                self.routeOpenedURLs(urls)
-            }
+            hideMainWindowIfOpeningArchive(urls)
+            routeOpenedURLs(urls)
         } else {
             pendingURLs.append(contentsOf: urls)
         }
@@ -32,7 +31,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
-    @MainActor
+    private func hideMainWindowIfOpeningArchive(_ urls: [URL]) {
+        guard urls.count == 1,
+              urls.first.map(ArchiveUtilities.looksLikeArchive) == true else { return }
+        NSApp.windows
+            .filter { $0.title == "文件台" }
+            .forEach { $0.orderOut(nil) }
+    }
+
     private func routeOpenedURLs(_ urls: [URL]) {
         if urls.count == 1, let archive = urls.first, ArchiveUtilities.looksLikeArchive(archive) {
             FinderOperationWindowController.shared.present(
