@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="FileNest is a native macOS file workspace powered by the in-process 7-Zip SDK, with archive creation, extraction, browsing, Finder actions, Excel file tools, and hash verification.">
-  <meta name="keywords" content="macOS archive utility,7z extractor,ZIP compression,archive browser,Finder Quick Actions,hash checker,FileNest">
+  <meta name="description" content="FileNest is a native macOS file workspace for archives, local NCM-to-MP3/FLAC recovery, Finder actions, Excel file tools, and hash verification.">
+  <meta name="keywords" content="macOS archive utility,7z extractor,ZIP compression,NCM to MP3,NCM to FLAC,archive browser,Finder Quick Actions,hash checker,FileNest">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="theme-color" content="#ffffff">
   <meta property="og:title" content="FileNest · A native file workspace for macOS">
-  <meta property="og:description" content="Create, extract, and browse archives. Run Finder actions, manage files from Excel, and verify hashes in one native app.">
+  <meta property="og:description" content="Create, extract, and browse archives. Recover NCM audio locally, run Finder actions, manage files from Excel, and verify hashes in one native app.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://985860612.github.io/FileNest/en/">
   <meta property="og:image" content="https://985860612.github.io/FileNest/app-overview.webp">
@@ -32,7 +32,7 @@
   <header class="site-header">
     <a class="brand" href="#top" aria-label="FileNest home"><img src="../filenest-mark.svg" alt=""><span>FileNest <small>文件台</small></span></a>
     <nav aria-label="Main navigation">
-      <a href="#features">Features</a><a href="#finder">Finder</a><a href="#browse">Browse</a><a href="#compare">Compare</a><a href="#open-source">Open source</a>
+      <a href="#features">Features</a><a href="#ncm">NCM</a><a href="#finder">Finder</a><a href="#browse">Browse</a><a href="#compare">Compare</a><a href="#open-source">Open source</a>
       <a class="language-link" href="../" lang="zh-CN" hreflang="zh-CN">中文</a>
       <a class="source-link" href="https://github.com/985860612/FileNest"><span>GitHub</span> ↗</a>
     </nav>
@@ -41,7 +41,7 @@
     <section class="hero">
       <p class="eyebrow">Made for macOS · Everything stays on your Mac</p>
       <h1><span>File work, without the patchwork.</span><span>One workspace is enough.</span></h1>
-      <p class="lead">Create, extract, and inspect archives in a native interface. Work directly from Finder, then keep Excel-based file management and hash verification in the same app.</p>
+      <p class="lead">Create, extract, and inspect archives in a native interface. Recover original audio from NCM files locally, then keep Finder actions, Excel file management, and hash verification in the same app.</p>
       <div class="actions"><a class="button primary" href="https://github.com/985860612/FileNest/releases/latest">Download for macOS</a><a class="button" href="https://github.com/985860612/FileNest">View source</a></div>
       <p class="meta">macOS 13+ · Apple silicon and Intel · Open source under MIT</p>
       <figure class="hero-shot"><img src="../app-overview.webp" width="2652" height="1532" alt="FileNest main window with archive, Excel file management, and hash verification tools" fetchpriority="high"></figure>
@@ -55,6 +55,16 @@
         <article><span class="feature-icon">⌘</span><h3>Finder actions</h3><p>Skip the main window. Extract beside an archive, create 7z or ZIP files, or export a folder inventory to XLSX on your Desktop.</p></article>
         <article><span class="feature-icon">▦</span><h3>Excel file tools</h3><p>Export directory inventories, preview and batch-copy paths from XLSX, or move matching files safely to the macOS Trash.</p></article>
         <article><span class="feature-icon">✓</span><h3>Hash verification</h3><p>Compute MD5, SHA-1, SHA-256, and SHA-512 locally, then compare a file against an expected digest.</p></article>
+        <article><span class="feature-icon warm">♫</span><h3>NCM audio recovery</h3><p>Batch-restore the original MP3 or FLAC stream without re-encoding or quality loss, while preserving title, artist, album, and cover metadata.</p></article>
+      </div>
+    </section>
+
+    <section id="ncm" class="content-section ncm-section">
+      <div class="ncm-copy"><p class="eyebrow">Original audio stays local</p><h2>Recover MP3 / FLAC from NCM without uploading</h2><p>Drop individual NCM files or a whole folder. FileNest restores the audio stream already stored in the cache, entirely in process—without a network connection, command-line helper, or lossy transcoding.</p><ul><li>Detect the original MP3 or FLAC format automatically</li><li>Batch conversion with continuous progress and cancellation</li><li>Preserve title, artist, album, and cover metadata</li><li>Avoid filename collisions without overwriting existing files</li></ul></div>
+      <div class="ncm-demo" aria-label="Diagram showing an NCM file restored to FLAC locally">
+        <div class="ncm-file"><span class="audio-mark">♫</span><div><strong>My Music.ncm</strong><small>NCM cache file</small></div><span class="flow-arrow">→</span></div>
+        <div class="ncm-file output"><span class="audio-mark">✓</span><div><strong>My Music.flac</strong><small>Original audio · metadata preserved</small></div></div>
+        <div class="ncm-badges"><span>No uploads</span><span>No transcoding</span><span>No overwrite</span></div>
       </div>
     </section>
 
@@ -76,12 +86,13 @@
         <div><strong>Browse without extracting</strong><span class="yes">Folder navigation + search</span><span>Not available</span></div>
         <div><strong>Advanced controls</strong><span class="yes">Password, dictionary, volumes, level</span><span>Not exposed</span></div>
         <div><strong>Finder actions</strong><span class="yes">Archive, extract, export XLSX</span><span>Basic archive and extract</span></div>
+        <div><strong>NCM audio recovery</strong><span class="yes">Local MP3 / FLAC recovery</span><span>Not available</span></div>
         <div><strong>Additional tools</strong><span class="yes">Excel file tools, hash verification</span><span>Not included</span></div>
       </div>
     </section>
 
     <section id="open-source" class="content-section open-source">
-      <div class="section-heading"><p class="eyebrow">Open, transparent, buildable</p><h2>A local utility should earn your trust</h2><p>FileNest has no file uploads and no telemetry. The application source is public, with explicit notices for the archive engine.</p></div>
+      <div class="section-heading"><p class="eyebrow">Open, transparent, buildable</p><h2>A local utility should earn your trust</h2><p>FileNest has no file uploads and no telemetry. Archive and NCM recovery both run in process, with public source and explicit third-party notices.</p></div>
       <div class="license-grid"><article><h3>FileNest · MIT</h3><p>The Swift application code uses the permissive MIT License and can be studied, modified, and redistributed.</p><a href="https://github.com/985860612/FileNest/blob/main/LICENSE">Read the license →</a></article><article><h3>7-Zip · LGPL</h3><p>The 7-Zip engine and derivative bridge are dynamically loaded under the GNU LGPL. RAR decoding is also subject to the unRAR restriction.</p><a href="https://github.com/985860612/FileNest/blob/main/THIRD_PARTY_NOTICES.md">Read third-party notices →</a></article></div>
       <div class="actions"><a class="button primary" href="https://github.com/985860612/FileNest/releases/latest">Download FileNest</a><a class="button" href="https://github.com/985860612/FileNest#build">Build from source</a></div>
     </section>

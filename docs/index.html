@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="FileNest 文件台是一款原生 macOS 文件工具，集成 7-Zip SDK，支持压缩、解压、归档浏览、Finder 右键菜单、Excel 文件管理和 Hash 校验。">
-  <meta name="keywords" content="macOS解压软件,7z解压,ZIP压缩,归档浏览,Finder右键菜单,文件目录导出,Hash校验,FileNest,文件台">
+  <meta name="description" content="FileNest 文件台是一款原生 macOS 文件工具，支持压缩解压、归档浏览、NCM 本地恢复 MP3/FLAC、Finder 右键菜单、Excel 文件管理和 Hash 校验。">
+  <meta name="keywords" content="macOS解压软件,7z解压,ZIP压缩,NCM转MP3,NCM转FLAC,归档浏览,Finder右键菜单,文件目录导出,Hash校验,FileNest,文件台">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="theme-color" content="#ffffff">
   <meta property="og:title" content="FileNest 文件台 · 原生 macOS 文件工作台">
-  <meta property="og:description" content="压缩、解压、只读浏览、Finder 快速操作、Excel 文件管理和 Hash 校验，一个原生 App 完成。">
+  <meta property="og:description" content="压缩、解压、只读浏览、NCM 本地无损恢复、Finder 快速操作、Excel 文件管理和 Hash 校验，一个原生 App 完成。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://985860612.github.io/FileNest/">
   <meta property="og:image" content="https://985860612.github.io/FileNest/app-overview.webp">
@@ -32,7 +32,7 @@
   <header class="site-header">
     <a class="brand" href="#top" aria-label="FileNest 首页"><img src="filenest-mark.svg" alt=""><span>文件台 <small>FileNest</small></span></a>
     <nav aria-label="主导航">
-      <a href="#features">功能</a><a href="#finder">Finder</a><a href="#browse">浏览</a><a href="#compare">对比</a><a href="#open-source">开源</a>
+      <a href="#features">功能</a><a href="#ncm">NCM</a><a href="#finder">Finder</a><a href="#browse">浏览</a><a href="#compare">对比</a><a href="#open-source">开源</a>
       <a class="language-link" href="en/" lang="en" hreflang="en">EN</a>
       <a class="source-link" href="https://github.com/985860612/FileNest"><span>GitHub</span> ↗</a>
     </nav>
@@ -41,10 +41,10 @@
     <section class="hero">
       <p class="eyebrow">为 macOS 而生 · 所有处理均在本机完成</p>
       <h1><span>文件工作，不必东拼西凑。</span><span>一个文件台，就够了。</span></h1>
-      <p class="lead">用原生界面完成压缩、解压和归档浏览；在 Finder 右键直接操作文件，再把 Excel 文件管理与 Hash 校验收进同一个工作台。</p>
+      <p class="lead">用原生界面完成压缩、解压和归档浏览；在本机恢复 NCM 中的原始音频，再把 Finder 操作、Excel 文件管理与 Hash 校验收进同一个工作台。</p>
       <div class="actions"><a class="button primary" href="https://github.com/985860612/FileNest/releases/latest">下载 macOS 版</a><a class="button" href="https://github.com/985860612/FileNest">查看源码</a></div>
       <p class="meta">macOS 13+ · Apple silicon 与 Intel · MIT 开源</p>
-      <figure class="hero-shot"><img src="app-overview.webp" width="2652" height="1532" alt="FileNest 文件台主界面，包含解压缩、创建归档、Excel 文件管理和 Hash 校验" fetchpriority="high"></figure>
+      <figure class="hero-shot"><img src="app-overview.webp" width="2652" height="1532" alt="FileNest 文件台主界面，包含压缩解压、Excel 文件管理和 Hash 校验" fetchpriority="high"></figure>
     </section>
     <section class="stats" aria-label="能力概览"><div><strong>7-Zip SDK</strong><span>进程内归档内核</span></div><div><strong>7z / ZIP / TAR</strong><span>创建归档</span></div><div><strong>Finder</strong><span>右键快速操作</span></div><div><strong>100% 本地</strong><span>无上传、无遥测</span></div></section>
 
@@ -55,6 +55,16 @@
         <article><span class="feature-icon">⌘</span><h3>Finder 右键操作</h3><p>无需先打开主窗口。直接解压到同名目录、创建 7z 或 ZIP，也能把文件夹清单导出为桌面上的 XLSX。</p></article>
         <article><span class="feature-icon">▦</span><h3>Excel 文件管理</h3><p>导出目录清单；按 XLSX 路径列预览并批量复制文件，或安全移动到 macOS 废纸篓。</p></article>
         <article><span class="feature-icon">✓</span><h3>Hash 校验</h3><p>本地计算 MD5、SHA-1、SHA-256 与 SHA-512，并直接对照期望值确认文件是否完整。</p></article>
+        <article><span class="feature-icon warm">♫</span><h3>NCM 音频恢复</h3><p>批量恢复 NCM 缓存中的原始 MP3 或 FLAC，不重新编码、不降低音质，并保留标题、歌手、专辑和封面。</p></article>
+      </div>
+    </section>
+
+    <section id="ncm" class="content-section ncm-section">
+      <div class="ncm-copy"><p class="eyebrow">原始音频，留在本机</p><h2>NCM 转回 MP3 / FLAC，不必上传文件</h2><p>拖入单个 NCM 文件或整个文件夹，FileNest 会直接恢复缓存内已有的音频流。处理过程不联网、不调用命令行，也不会进行有损二次编码。</p><ul><li>自动识别原始 MP3 或 FLAC</li><li>批量转换、连续进度与随时取消</li><li>保留标题、歌手、专辑和封面元数据</li><li>同名文件自动避让，不覆盖已有内容</li></ul></div>
+      <div class="ncm-demo" aria-label="NCM 文件在本机恢复为 FLAC 的示意图">
+        <div class="ncm-file"><span class="audio-mark">♫</span><div><strong>我的音乐.ncm</strong><small>NCM 缓存文件</small></div><span class="flow-arrow">→</span></div>
+        <div class="ncm-file output"><span class="audio-mark">✓</span><div><strong>我的音乐.flac</strong><small>原始音频 · 元数据已保留</small></div></div>
+        <div class="ncm-badges"><span>不上传</span><span>不转码</span><span>不覆盖</span></div>
       </div>
     </section>
 
@@ -76,12 +86,13 @@
         <div><strong>不解压浏览</strong><span class="yes">逐层目录 + 搜索</span><span>不支持</span></div>
         <div><strong>高级参数</strong><span class="yes">密码、字典、分卷、等级</span><span>不提供</span></div>
         <div><strong>Finder 操作</strong><span class="yes">压缩、解压、导出 XLSX</span><span>基础压缩与解压</span></div>
+        <div><strong>NCM 音频恢复</strong><span class="yes">本地恢复 MP3 / FLAC</span><span>不提供</span></div>
         <div><strong>额外工具</strong><span class="yes">Excel 文件管理、Hash 校验</span><span>不提供</span></div>
       </div>
     </section>
 
     <section id="open-source" class="content-section open-source">
-      <div class="section-heading"><p class="eyebrow">开放、透明、可构建</p><h2>真正的本地工具，也应该值得信任</h2><p>FileNest 不联网、不上传文件、不采集遥测。应用源码公开，归档内核的第三方许可清晰可查。</p></div>
+      <div class="section-heading"><p class="eyebrow">开放、透明、可构建</p><h2>真正的本地工具，也应该值得信任</h2><p>FileNest 不上传文件、不采集遥测。归档和 NCM 恢复均在进程内完成，应用源码与第三方许可清晰可查。</p></div>
       <div class="license-grid"><article><h3>FileNest · MIT</h3><p>Swift 应用代码采用宽松的 MIT License，可自由学习、修改与分发。</p><a href="https://github.com/985860612/FileNest/blob/main/LICENSE">查看许可证 →</a></article><article><h3>7-Zip · LGPL</h3><p>7-Zip 核心和派生桥接层动态加载并遵循 GNU LGPL；RAR 解码另受 unRAR 限制。</p><a href="https://github.com/985860612/FileNest/blob/main/THIRD_PARTY_NOTICES.md">查看第三方声明 →</a></article></div>
       <div class="actions"><a class="button primary" href="https://github.com/985860612/FileNest/releases/latest">下载 FileNest</a><a class="button" href="https://github.com/985860612/FileNest#构建">从源码构建</a></div>
     </section>
