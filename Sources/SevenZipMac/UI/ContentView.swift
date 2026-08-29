@@ -559,16 +559,6 @@ struct ContentView: View {
                             .foregroundStyle(.orange)
                     }
                 }
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Finder 快速操作", systemImage: "cursorarrow.rays")
-                        .font(.subheadline.weight(.medium))
-                    Text("安装到“应用程序”后，可直接在 Finder 中解压或创建 7z / ZIP。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(13)
-                .background(FileNestTheme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .padding(16)
         }
