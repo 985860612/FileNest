@@ -41,12 +41,22 @@ enum AppDestination: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .extract: "archivebox"
-        case .compress: "archivebox.fill"
-        case .exportCatalog: "tablecells"
-        case .copyFiles: "doc.on.doc"
-        case .trashFiles: "trash"
-        case .hashVerification: "checkmark.shield"
+        case .extract: "tray.and.arrow.down.fill"
+        case .compress: "tray.and.arrow.up.fill"
+        case .exportCatalog: "tablecells.fill"
+        case .copyFiles: "doc.on.doc.fill"
+        case .trashFiles: "trash.fill"
+        case .hashVerification: "checkmark.shield.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .extract, .compress: FileNestTheme.accent
+        case .exportCatalog: FileNestTheme.green
+        case .copyFiles: FileNestTheme.teal
+        case .trashFiles: FileNestTheme.red
+        case .hashVerification: FileNestTheme.violet
         }
     }
 
@@ -61,22 +71,37 @@ enum AppDestination: String, CaseIterable, Identifiable {
 }
 
 struct ContentView: View {
+    private static let sidebarWidth: CGFloat = 220
+
     @ObservedObject var model: WorkspaceModel
     @StateObject private var fileManagementModel = FileManagementWorkspaceModel()
     @StateObject private var hashModel = HashWorkspaceModel()
     @State private var destination: AppDestination? = .extract
     @State private var dropTargeted = false
+    @State private var isSidebarVisible = true
 
     private var selectedDestination: AppDestination { destination ?? .extract }
 
     var body: some View {
-        NavigationSplitView {
-            sidebar
-        } detail: {
+        HStack(spacing: 0) {
+            ZStack(alignment: .leading) {
+                sidebar
+                    .frame(width: Self.sidebarWidth)
+                    .offset(x: isSidebarVisible ? 0 : -12)
+            }
+            .frame(width: isSidebarVisible ? Self.sidebarWidth : 0)
+            .opacity(isSidebarVisible ? 1 : 0)
+            .clipped()
+            .accessibilityHidden(!isSidebarVisible)
+
+            Divider()
+                .opacity(isSidebarVisible ? 1 : 0)
+
             detail
-                .navigationTitle("文件台")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationSplitViewStyle(.balanced)
+        .animation(.easeInOut(duration: 0.25), value: isSidebarVisible)
+        .tint(FileNestTheme.accent)
         .frame(minWidth: 900, minHeight: 580)
         .toolbarBackground(Color(nsColor: .windowBackgroundColor), for: .windowToolbar)
         .toolbarBackground(.visible, for: .windowToolbar)
@@ -113,38 +138,69 @@ struct ContentView: View {
     }
 
     private var sidebar: some View {
-        List(selection: $destination) {
-            Section("归档") {
-                sidebarRow(.extract)
-                sidebarRow(.compress)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    sidebarSection("归档", items: [.extract, .compress])
+                    sidebarSection("Excel 文件管理", items: [.exportCatalog, .copyFiles, .trashFiles])
+                    sidebarSection("工具", items: [.hashVerification])
+                }
+                .padding(.horizontal, 10)
+                .padding(.top, 14)
             }
-            Section("Excel 文件管理") {
-                sidebarRow(.exportCatalog)
-                sidebarRow(.copyFiles)
-                sidebarRow(.trashFiles)
-            }
-            Section("工具") {
-                sidebarRow(.hashVerification)
-            }
-        }
-        .listStyle(.sidebar)
-        .navigationTitle("文件台")
-        .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
-        .safeAreaInset(edge: .bottom) {
+            Divider()
             Label("所有处理均在本机完成", systemImage: "lock.shield")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.regularMaterial)
+        }
+        .background(FileNestTheme.sidebarBackground)
+    }
+
+    private func sidebarSection(_ title: String, items: [AppDestination]) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.semibold))
+                .tracking(0.5)
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 9)
+            ForEach(items) { item in
+                sidebarRow(item)
+            }
         }
     }
 
     private func sidebarRow(_ item: AppDestination) -> some View {
-        NavigationLink(value: item) {
-            Label(item.title, systemImage: item.systemImage)
+        let selected = selectedDestination == item
+        return Button {
+            destination = item
+        } label: {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(item.tint.opacity(selected ? 0.20 : 0.11))
+                    Image(systemName: item.systemImage)
+                        .font(.system(size: 13, weight: .semibold))
+                        .symbolRenderingMode(.monochrome)
+                        .foregroundStyle(item.tint)
+                }
+                .frame(width: 27, height: 27)
+                Text(item.title)
+                    .font(.system(size: 13, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? Color.primary : Color.secondary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 38)
+            .contentShape(Rectangle())
+            .background(
+                selected ? item.tint.opacity(0.12) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
         }
+        .buttonStyle(.plain)
         .accessibilityHint(item.subtitle)
     }
 
@@ -163,6 +219,12 @@ struct ContentView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
+            Button {
+                isSidebarVisible.toggle()
+            } label: {
+                Label(isSidebarVisible ? "隐藏侧边栏" : "显示侧边栏", systemImage: "sidebar.left")
+            }
+            .help(isSidebarVisible ? "隐藏侧边栏" : "显示侧边栏")
             if selectedDestination == .extract || selectedDestination == .compress {
                 Button(action: model.chooseFiles) {
                     Label("添加文件", systemImage: "plus")
@@ -197,7 +259,9 @@ struct ContentView: View {
         VStack(spacing: 0) {
             TaskHeader(
                 title: selectedDestination.title,
-                subtitle: selectedDestination.subtitle
+                subtitle: selectedDestination.subtitle,
+                systemImage: selectedDestination.systemImage,
+                tint: selectedDestination.tint
             )
             Divider()
             HStack(spacing: 0) {
@@ -211,7 +275,7 @@ struct ContentView: View {
             Divider()
             archiveStatusBar
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(FileNestTheme.workspaceBackground)
     }
 
     private var fileSelectionPanel: some View {
@@ -243,10 +307,16 @@ struct ContentView: View {
 
     private var archiveDropZone: some View {
         VStack(spacing: 16) {
-            Image(systemName: dropTargeted ? "arrow.down.circle.fill" : selectedDestination.systemImage)
-                .font(.system(size: 48, weight: .light))
-                .foregroundStyle(dropTargeted ? Color.accentColor : Color.secondary)
-                .symbolRenderingMode(.hierarchical)
+            ZStack {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(selectedDestination.tint.opacity(0.13))
+                Image(systemName: dropTargeted ? "arrow.down" : selectedDestination.systemImage)
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(selectedDestination.tint)
+                    .symbolRenderingMode(.monochrome)
+            }
+            .frame(width: 68, height: 68)
+            .scaleEffect(dropTargeted ? 1.06 : 1)
             VStack(spacing: 5) {
                 Text(selectedDestination == .extract ? "将归档拖到这里" : "将文件或文件夹拖到这里")
                     .font(.title3.weight(.semibold))
@@ -261,12 +331,12 @@ struct ContentView: View {
                 .controlSize(.large)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(dropTargeted ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
+        .background(dropTargeted ? selectedDestination.tint.opacity(0.08) : FileNestTheme.panelBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(
-                    dropTargeted ? Color.accentColor : Color(nsColor: .separatorColor),
+                    dropTargeted ? selectedDestination.tint : FileNestTheme.border,
                     style: StrokeStyle(lineWidth: dropTargeted ? 2 : 1, dash: [6])
                 )
         }
@@ -491,12 +561,12 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(12)
-                .background(Color.accentColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .padding(13)
+                .background(FileNestTheme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            .padding(20)
+            .padding(16)
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45))
+        .background(FileNestTheme.sidebarBackground)
         .disabled(model.isWorking)
     }
 
@@ -505,9 +575,30 @@ struct ContentView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.headline)
+            HStack(spacing: 7) {
+                Image(systemName: settingsSectionIcon(title))
+                    .foregroundStyle(FileNestTheme.accent)
+                Text(title)
+                    .foregroundStyle(.primary)
+            }
+            .font(.subheadline.weight(.semibold))
             content()
+        }
+        .padding(13)
+        .background(FileNestTheme.panelBackground, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(FileNestTheme.border)
+        }
+    }
+
+    private func settingsSectionIcon(_ title: String) -> String {
+        switch title {
+        case "归档": "archivebox.fill"
+        case "分卷": "square.stack.3d.up.fill"
+        case "文件": "doc.fill"
+        case "安全": "lock.shield.fill"
+        default: "gearshape.fill"
         }
     }
 
@@ -584,9 +675,19 @@ private extension ArchiveEntry {
 struct TaskHeader: View {
     let title: String
     let subtitle: String
+    let systemImage: String
+    let tint: Color
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(tint.opacity(0.13))
+                Image(systemName: systemImage)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            .frame(width: 38, height: 38)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.title2.weight(.semibold))

@@ -9,7 +9,9 @@ struct HashToolView: View {
         VStack(spacing: 0) {
             TaskHeader(
                 title: "Hash 校验",
-                subtitle: "计算并验证文件的 MD5、SHA-1、SHA-256 或 SHA-512"
+                subtitle: "计算并验证文件的 MD5、SHA-1、SHA-256 或 SHA-512",
+                systemImage: AppDestination.hashVerification.systemImage,
+                tint: AppDestination.hashVerification.tint
             )
             Divider()
             HStack(spacing: 0) {
@@ -23,7 +25,7 @@ struct HashToolView: View {
             Divider()
             statusBar
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(FileNestTheme.workspaceBackground)
     }
 
     private var filePanel: some View {
@@ -53,10 +55,14 @@ struct HashToolView: View {
 
     private var dropZone: some View {
         VStack(spacing: 16) {
-            Image(systemName: dropTargeted ? "arrow.down.circle.fill" : "number.square")
-                .font(.system(size: 48, weight: .light))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(dropTargeted ? Color.accentColor : Color.secondary)
+            ZStack {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(FileNestTheme.violet.opacity(0.13))
+                Image(systemName: dropTargeted ? "arrow.down" : AppDestination.hashVerification.systemImage)
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(FileNestTheme.violet)
+            }
+            .frame(width: 68, height: 68)
             VStack(spacing: 5) {
                 Text("将文件拖到这里")
                     .font(.title3.weight(.semibold))
