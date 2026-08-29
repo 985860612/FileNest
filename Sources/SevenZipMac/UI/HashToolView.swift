@@ -75,7 +75,7 @@ struct HashToolView: View {
                 .controlSize(.large)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(dropTargeted ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
+        .background(dropTargeted ? FileNestTheme.violet.opacity(0.10) : FileNestTheme.recessedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -181,6 +181,7 @@ struct HashToolView: View {
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .fileNestFormControl()
                 }
                 VStack(alignment: .leading, spacing: 10) {
                     Text("期望 Hash")
@@ -188,6 +189,7 @@ struct HashToolView: View {
                     TextField("粘贴 Hash 进行校验（可选）", text: $model.expectedHash)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
+                        .fileNestFormControl()
                     Text("单文件校验时粘贴官网或发布页提供的 Hash；结果会自动忽略大小写。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -206,7 +208,7 @@ struct HashToolView: View {
             }
             .padding(20)
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45))
+        .background(FileNestTheme.sidebarBackground)
         .disabled(model.isWorking)
     }
 
@@ -235,7 +237,7 @@ struct HashToolView: View {
         .padding(.leading, WorkspaceLayout.leadingInset)
         .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 13)
-        .background(.bar)
+        .background(FileNestTheme.panelBackground)
     }
 
     @ViewBuilder

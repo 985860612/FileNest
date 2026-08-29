@@ -71,6 +71,7 @@ struct FileManagementView: View {
                 )
                 Button("选择文件夹…", action: model.chooseDirectory)
                     .disabled(model.isWorking)
+                    .fileNestFormControl()
             }
             HStack {
                 Toggle("包含子文件夹", isOn: $model.recursively)
@@ -79,7 +80,7 @@ struct FileManagementView: View {
                 Spacer()
                 Button("导出 XLSX…", action: model.exportDirectory)
                     .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .fileNestFormControl()
                     .disabled(model.directoryURL == nil || model.isWorking)
             }
         }
@@ -97,6 +98,7 @@ struct FileManagementView: View {
                 )
                 Button("选择 Excel…", action: model.chooseWorkbook)
                     .disabled(model.isWorking)
+                    .fileNestFormControl()
             }
             HStack(alignment: .bottom, spacing: 14) {
                 if copying {
@@ -111,13 +113,16 @@ struct FileManagementView: View {
                 Spacer()
                 Button("预览", action: model.preview)
                     .disabled(model.sheet == nil || model.isWorking)
+                    .fileNestFormControl()
                 if copying {
                     Button("复制文件", action: model.executeCopy)
                         .buttonStyle(.borderedProminent)
                         .disabled(model.operations.isEmpty || model.isWorking)
+                        .fileNestFormControl()
                 } else {
                     Button("移到废纸篓", role: .destructive, action: model.requestTrash)
                         .disabled(model.operations.isEmpty || model.isWorking)
+                        .fileNestFormControl()
                 }
             }
         }
@@ -134,7 +139,7 @@ struct FileManagementView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 11)
-        .padding(.vertical, 8)
+        .frame(height: FileNestTheme.formControlHeight)
         .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -155,6 +160,7 @@ struct FileManagementView: View {
             }
             .labelsHidden()
             .frame(minWidth: 150)
+            .fileNestFormControl()
         }
     }
 
@@ -264,6 +270,6 @@ struct FileManagementView: View {
         .padding(.leading, WorkspaceLayout.leadingInset)
         .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 11)
-        .background(.bar)
+        .background(FileNestTheme.panelBackground)
     }
 }

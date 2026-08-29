@@ -18,7 +18,7 @@ struct FinderOperationView: View {
             Divider()
             footer
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(FileNestTheme.workspaceBackground)
         .alert("操作失败", isPresented: Binding(
             get: { model.errorMessage != nil },
             set: { if !$0 { model.errorMessage = nil } }
@@ -89,7 +89,7 @@ struct FinderOperationView: View {
                     if url != model.selectedURLs.last { Divider().padding(.leading, 47) }
                 }
             }
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 9))
+            .background(FileNestTheme.panelBackground, in: RoundedRectangle(cornerRadius: 9))
             .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(Color(nsColor: .separatorColor)) }
             .frame(maxHeight: 150)
         }
@@ -111,6 +111,7 @@ struct FinderOperationView: View {
                 }
                 .labelsHidden()
                 .frame(width: 150)
+                .fileNestFormControl()
             }
             destinationRow
             VStack(alignment: .leading, spacing: 6) {
@@ -132,6 +133,7 @@ struct FinderOperationView: View {
                     }
                     .labelsHidden()
                     .frame(width: 150)
+                    .fileNestFormControl()
                 }
             }
             settingRow("分卷大小") {
@@ -142,6 +144,7 @@ struct FinderOperationView: View {
                 }
                 .labelsHidden()
                 .frame(width: 150)
+                .fileNestFormControl()
             }
             if model.volumePreset == .custom {
                 HStack {
@@ -150,11 +153,13 @@ struct FinderOperationView: View {
                     TextField("大小", value: $model.customVolumeMegabytes, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 105)
+                        .fileNestFormControl()
                     Text("MB").foregroundStyle(.secondary)
                 }
             }
             SecureField("密码（可选）", text: $model.password)
                 .textFieldStyle(.roundedBorder)
+                .fileNestFormControl()
             if model.format == .tar, !model.password.isEmpty {
                 Label("TAR 不支持密码保护", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
@@ -172,8 +177,10 @@ struct FinderOperationView: View {
             HStack(spacing: 8) {
                 SecureField("归档密码（如需要）", text: $model.password)
                     .textFieldStyle(.roundedBorder)
+                    .fileNestFormControl()
                     .onSubmit(model.loadContents)
                 Button("读取目录", action: model.loadContents)
+                    .fileNestFormControl()
             }
         }
     }
@@ -189,10 +196,11 @@ struct FinderOperationView: View {
                     .truncationMode(.middle)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
+                    .frame(height: FileNestTheme.formControlHeight)
                     .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
                     .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)) }
                 Button("选择…", action: model.chooseDestination)
+                    .fileNestFormControl()
             }
         }
     }
@@ -235,14 +243,17 @@ struct FinderOperationView: View {
             HStack(spacing: 8) {
                 TextField("搜索归档中的文件", text: $model.searchText)
                     .textFieldStyle(.roundedBorder)
+                    .fileNestFormControl()
                 SecureField("密码（如需要）", text: $model.password)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 190)
+                    .fileNestFormControl()
                     .onSubmit(model.loadContents)
                 Button(action: model.loadContents) {
                     Label("重新读取", systemImage: "arrow.clockwise")
                 }
                 .disabled(model.isLoadingContents)
+                .fileNestFormControl()
             }
             HStack {
                 Image(nsImage: NSWorkspace.shared.icon(forFile: model.selectedURLs[0].path))
@@ -353,7 +364,7 @@ struct FinderOperationView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(.bar)
+        .background(FileNestTheme.panelBackground)
     }
 
     private func sectionTitle(_ title: String) -> some View {
