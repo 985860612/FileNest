@@ -34,6 +34,7 @@ final class FileManagementWorkspaceModel: ObservableObject {
     @Published var statusMessage = "选择一种文件管理操作"
     @Published var errorMessage: String?
     @Published var showsTrashConfirmation = false
+    @Published var showsRenameConfirmation = false
 
     private let engine: ArchiveEngine
 
@@ -146,6 +147,16 @@ final class FileManagementWorkspaceModel: ObservableObject {
                 sourceColumn: sourceColumn,
                 destinationColumn: destinationColumn
             )
+        case .rename:
+            guard let sourceColumn, let destinationColumn else {
+                errorMessage = FileManagementError.columnRequired.localizedDescription
+                return
+            }
+            operations = FileOperationService.renamePreview(
+                sheet: sheet,
+                pathColumn: sourceColumn,
+                nameColumn: destinationColumn
+            )
         case .trash:
             guard let pathColumn else {
                 errorMessage = FileManagementError.columnRequired.localizedDescription
@@ -170,6 +181,27 @@ final class FileManagementWorkspaceModel: ObservableObject {
             DispatchQueue.main.async {
                 self?.operations = results
                 self?.finish(message: "复制完成：成功 \(summary.succeeded)，未完成 \(summary.failed)")
+            }
+        }
+    }
+
+    func requestRename() {
+        guard !operations.isEmpty else { preview(); return }
+        showsRenameConfirmation = true
+    }
+
+    func executeRename() {
+        showsRenameConfirmation = false
+        beginWork(message: "正在重命名文件…")
+        let operations = operations
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let (results, summary) = FileOperationService.executeRenames(
+                operations,
+                progress: Self.progressHandler(for: self)
+            )
+            DispatchQueue.main.async {
+                self?.operations = results
+                self?.finish(message: "重命名完成：成功 \(summary.succeeded)，未完成 \(summary.failed)")
             }
         }
     }
@@ -240,6 +272,7 @@ private extension FileManagementMode {
         switch self {
         case .export: "选择要扫描的文件夹"
         case .copy: "选择包含源路径和目标路径的 Excel"
+        case .rename: "选择包含文件路径和新文件名的 Excel"
         case .trash: "选择包含文件路径的 Excel"
         }
     }
