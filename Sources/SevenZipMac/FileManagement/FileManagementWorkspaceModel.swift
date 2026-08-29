@@ -19,13 +19,13 @@ final class FileManagementWorkspaceModel: ObservableObject {
     @Published var workbookURL: URL?
     @Published var sheet: XLSXSheet?
     @Published var sourceColumn: XLSXColumn? {
-        didSet { if sourceColumn != oldValue { operations = [] } }
+        didSet { if sourceColumn != oldValue { refreshPreviewIfPossible() } }
     }
     @Published var destinationColumn: XLSXColumn? {
-        didSet { if destinationColumn != oldValue { operations = [] } }
+        didSet { if destinationColumn != oldValue { refreshPreviewIfPossible() } }
     }
     @Published var pathColumn: XLSXColumn? {
-        didSet { if pathColumn != oldValue { operations = [] } }
+        didSet { if pathColumn != oldValue { refreshPreviewIfPossible() } }
     }
     @Published var operations: [FileOperationPreview] = []
     @Published var isWorking = false
@@ -124,6 +124,7 @@ final class FileManagementWorkspaceModel: ObservableObject {
                     self?.destinationColumn = loaded.columns.dropFirst().first ?? loaded.columns.first
                     self?.pathColumn = loaded.columns.first
                     self?.finish(message: "已读取 \(loaded.rows.count) 行数据")
+                    self?.preview()
                 }
             } catch {
                 DispatchQueue.main.async { self?.fail(error) }
@@ -167,6 +168,14 @@ final class FileManagementWorkspaceModel: ObservableObject {
             return
         }
         statusMessage = "预览完成，共 \(operations.count) 项"
+    }
+
+    private func refreshPreviewIfPossible() {
+        guard sheet != nil, !isWorking, mode != .export else {
+            operations = []
+            return
+        }
+        preview()
     }
 
     func executeCopy() {

@@ -4,6 +4,27 @@ import Testing
 
 @Suite("File management")
 struct FileManagementTests {
+    @Test("Changing workbook columns refreshes the preview automatically")
+    @MainActor
+    func workbookColumnsRefreshPreview() {
+        let source = XLSXColumn(index: 0, title: "源文件")
+        let destination = XLSXColumn(index: 1, title: "目标文件")
+        let sheet = XLSXSheet(
+            columns: [source, destination],
+            rows: [["/tmp/missing-source.txt", "/tmp/output.txt"]]
+        )
+        let model = FileManagementWorkspaceModel()
+        model.mode = .copy
+        model.sheet = sheet
+
+        model.sourceColumn = source
+        #expect(model.operations.isEmpty)
+
+        model.destinationColumn = destination
+        #expect(model.operations.count == 1)
+        #expect(model.statusMessage == "预览完成，共 1 项")
+    }
+
     @Test("Directory scanning can include or exclude descendants")
     func directoryScanning() throws {
         let root = temporaryDirectory()
