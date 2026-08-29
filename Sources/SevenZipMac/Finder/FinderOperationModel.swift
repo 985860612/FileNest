@@ -17,6 +17,8 @@ final class FinderOperationModel: ObservableObject {
     @Published var destinationURL: URL
     @Published var entries: [ArchiveEntry] = []
     @Published var searchText = ""
+    @Published var browserPath = ""
+    @Published var browserSelection: String?
     @Published var isLoadingContents = false
     @Published var isWorking = false
     @Published var progressFraction: Double?
@@ -62,10 +64,18 @@ final class FinderOperationModel: ObservableObject {
     var actionTitle: String { isCompression ? "开始压缩" : "开始解压" }
     var volumeSize: UInt64 { volumePreset.bytes(customMegabytes: customVolumeMegabytes) }
     var effectiveDictionarySize: UInt64 { format == .sevenZip ? dictionarySize.rawValue : 0 }
-    var filteredEntries: [ArchiveEntry] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return entries }
-        return entries.filter { $0.path.localizedCaseInsensitiveContains(query) }
+    var browserItems: [ArchiveBrowserItem] {
+        Self.browserItems(entries: entries, directory: browserPath, searchText: searchText)
+    }
+    var isBrowserSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    var browserLocationTitle: String {
+        if isBrowserSearching { return "搜索整个归档" }
+        return browserPath.isEmpty ? "归档根目录" : "归档 / \(browserPath)"
+    }
+    var canBrowseUp: Bool {
+        !browserPath.isEmpty && !isBrowserSearching
     }
     var selectionSummary: String {
         selectedURLs.count == 1 ? selectedURLs[0].lastPathComponent : "已选择 \(selectedURLs.count) 项"
@@ -202,6 +212,61 @@ final class FinderOperationModel: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting(resultURLs)
     }
 
+    func openBrowserItem(_ item: ArchiveBrowserItem) {
+        guard item.directory else { return }
+        browserPath = item.path
+        browserSelection = nil
+        searchText = ""
+    }
+
+    func browseUp() {
+        guard canBrowseUp else { return }
+        browserPath = browserPath.split(separator: "/").dropLast().joined(separator: "/")
+        browserSelection = nil
+    }
+
+    nonisolated static func browserItems(
+        entries: [ArchiveEntry],
+        directory: String,
+        searchText: String
+    ) -> [ArchiveBrowserItem] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !query.isEmpty {
+            return entries
+                .filter { $0.path.localizedCaseInsensitiveContains(query) }
+                .map(ArchiveBrowserItem.init(entry:))
+                .sorted(by: ArchiveBrowserItem.areInDisplayOrder)
+        }
+
+        let normalizedDirectory = directory.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let prefix = normalizedDirectory.isEmpty ? "" : normalizedDirectory + "/"
+        var children: [String: ArchiveBrowserItem] = [:]
+
+        for entry in entries {
+            let normalizedPath = entry.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            guard normalizedPath.hasPrefix(prefix) else { continue }
+            let remainder = String(normalizedPath.dropFirst(prefix.count))
+            guard !remainder.isEmpty else { continue }
+            let parts = remainder.split(separator: "/", maxSplits: 1)
+            guard let firstPart = parts.first else { continue }
+            let name = String(firstPart)
+            let childPath = prefix + name
+            let isImplicitDirectory = parts.count > 1
+            let candidate = ArchiveBrowserItem(
+                path: childPath,
+                name: name,
+                size: isImplicitDirectory ? 0 : entry.size,
+                directory: isImplicitDirectory || entry.directory
+            )
+            if let existing = children[childPath] {
+                if candidate.directory && !existing.directory { children[childPath] = candidate }
+            } else {
+                children[childPath] = candidate
+            }
+        }
+        return children.values.sorted(by: ArchiveBrowserItem.areInDisplayOrder)
+    }
+
     nonisolated static func extractionDestination(
         for archive: URL,
         selectedDestination: URL,
@@ -260,11 +325,48 @@ final class FinderOperationModel: ObservableObject {
         { [weak model] progress in
             let combinedFraction = progress.fraction.map { (Double(index) + $0) / Double(max(1, count)) }
             Task { @MainActor in
-                model?.progressFraction = combinedFraction
+                guard let model else { return }
+                model.progressFraction = monotonicProgress(
+                    current: model.progressFraction,
+                    incoming: combinedFraction
+                )
                 if let path = progress.currentPath, !path.isEmpty {
-                    model?.currentPath = path
+                    model.currentPath = path
                 }
             }
         }
+    }
+
+    nonisolated static func monotonicProgress(current: Double?, incoming: Double?) -> Double? {
+        guard let incoming else { return current }
+        return max(current ?? 0, incoming)
+    }
+}
+
+struct ArchiveBrowserItem: Identifiable, Sendable {
+    let path: String
+    let name: String
+    let size: UInt64
+    let directory: Bool
+
+    var id: String { path }
+
+    init(path: String, name: String, size: UInt64, directory: Bool) {
+        self.path = path
+        self.name = name
+        self.size = size
+        self.directory = directory
+    }
+
+    init(entry: ArchiveEntry) {
+        path = entry.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        name = path.split(separator: "/").last.map(String.init) ?? path
+        size = entry.size
+        directory = entry.directory
+    }
+
+    static func areInDisplayOrder(_ lhs: Self, _ rhs: Self) -> Bool {
+        if lhs.directory != rhs.directory { return lhs.directory }
+        return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
     }
 }

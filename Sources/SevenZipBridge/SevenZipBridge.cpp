@@ -380,6 +380,7 @@ public:
 
   UInt64 NumErrors;
   UInt64 TotalSize;
+  UInt64 CompletedSize;
   bool PasswordIsDefined;
   UString Password;
   SZProgressCallback Progress;
@@ -388,6 +389,7 @@ public:
 
   CArchiveExtractCallback():
       TotalSize(0),
+      CompletedSize(0),
       PasswordIsDefined(false),
       Progress(NULL),
       ShouldCancel(NULL),
@@ -397,6 +399,7 @@ public:
 void CArchiveExtractCallback::Init(IInArchive *archiveHandler, const FString &directoryPath)
 {
   NumErrors = 0;
+  CompletedSize = 0;
   _archiveHandler = archiveHandler;
   _directoryPath = directoryPath;
   NName::NormalizeDirPathPrefix(_directoryPath);
@@ -405,6 +408,7 @@ void CArchiveExtractCallback::Init(IInArchive *archiveHandler, const FString &di
 Z7_COM7F_IMF(CArchiveExtractCallback::SetTotal(UInt64 size))
 {
   TotalSize = size;
+  CompletedSize = 0;
   return S_OK;
 }
 
@@ -412,8 +416,10 @@ Z7_COM7F_IMF(CArchiveExtractCallback::SetCompleted(const UInt64 *completeValue))
 {
   if (ShouldCancel && ShouldCancel(Context))
     return E_ABORT;
+  if (completeValue)
+    CompletedSize = *completeValue;
   if (Progress && completeValue)
-    Progress(*completeValue, TotalSize, NULL, Context);
+    Progress(CompletedSize, TotalSize, NULL, Context);
   return S_OK;
 }
 
@@ -577,7 +583,7 @@ Z7_COM7F_IMF(CArchiveExtractCallback::PrepareOperation(Int32 askExtractMode))
   {
     AString utf8;
     ConvertUnicodeToUTF8(_filePath, utf8);
-    Progress(0, TotalSize, utf8.Ptr(), Context);
+    Progress(CompletedSize, TotalSize, utf8.Ptr(), Context);
   }
   return S_OK;
 }
@@ -705,6 +711,7 @@ public:
   UString Password;
   bool AskPassword;
   UInt64 TotalSize;
+  UInt64 CompletedSize;
   SZProgressCallback Progress;
   SZCancelCallback ShouldCancel;
   void *Context;
@@ -719,6 +726,7 @@ public:
       PasswordIsDefined(false),
       AskPassword(false),
       TotalSize(0),
+      CompletedSize(0),
       Progress(NULL),
       ShouldCancel(NULL),
       Context(NULL)
@@ -730,6 +738,7 @@ public:
   void Init(const CObjectVector<CDirItem> *dirItems)
   {
     DirItems = dirItems;
+    CompletedSize = 0;
     m_NeedBeClosed = false;
     FailedFiles.Clear();
     FailedCodes.Clear();
@@ -739,6 +748,7 @@ public:
 Z7_COM7F_IMF(CArchiveUpdateCallback::SetTotal(UInt64 size))
 {
   TotalSize = size;
+  CompletedSize = 0;
   return S_OK;
 }
 
@@ -746,8 +756,10 @@ Z7_COM7F_IMF(CArchiveUpdateCallback::SetCompleted(const UInt64 *completeValue))
 {
   if (ShouldCancel && ShouldCancel(Context))
     return E_ABORT;
+  if (completeValue)
+    CompletedSize = *completeValue;
   if (Progress && completeValue)
-    Progress(*completeValue, TotalSize, NULL, Context);
+    Progress(CompletedSize, TotalSize, NULL, Context);
   return S_OK;
 }
 
@@ -822,7 +834,7 @@ Z7_COM7F_IMF(CArchiveUpdateCallback::GetStream(UInt32 index, ISequentialInStream
   {
     AString utf8;
     ConvertUnicodeToUTF8(dirItem.Path_For_Handler, utf8);
-    Progress(0, TotalSize, utf8.Ptr(), Context);
+    Progress(CompletedSize, TotalSize, utf8.Ptr(), Context);
   }
  
   if (dirItem.IsDir())
