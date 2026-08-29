@@ -117,9 +117,6 @@ struct FileManagementView: View {
                     columnPicker("文件路径列", selection: $model.pathColumn)
                 }
                 Spacer()
-                Button("预览", action: model.preview)
-                    .disabled(model.sheet == nil || model.isWorking)
-                    .fileNestFormControl()
                 if model.mode == .copy {
                     Button("复制文件", action: model.executeCopy)
                         .buttonStyle(.borderedProminent)
