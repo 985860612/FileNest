@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "SevenZipMac",
+    name: "FileNest",
     platforms: [.macOS(.v13)],
     products: [
         .executable(name: "SevenZipMac", targets: ["SevenZipMac"])
@@ -22,4 +22,3 @@ let package = Package(
         )
     ]
 )
-

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-APP="$ROOT/dist/SevenZip Mac.app"
+APP="$ROOT/dist/文件台.app"
 
 if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode-beta.app/Contents/Developer ]; then
   export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer

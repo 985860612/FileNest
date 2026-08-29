@@ -1,4 +1,4 @@
-# CLAUDE.md — SevenZip Mac
+# CLAUDE.md — FileNest（文件台）
 
 原生 macOS 压缩与解压工具。压缩内核必须通过进程内 7-Zip SDK 调用，不得启动 `7z`、`7zz` 或其他命令行子进程。
 

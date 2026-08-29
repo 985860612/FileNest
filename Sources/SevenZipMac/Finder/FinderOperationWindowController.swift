@@ -34,7 +34,7 @@ final class FinderOperationWindowController: NSObject, NSWindowDelegate {
         windows[id] = window
         models[id] = model
         NSApp.windows
-            .filter { $0 !== window && $0.title == "SevenZip Mac" }
+            .filter { $0 !== window && $0.title == "文件台" }
             .forEach { $0.orderOut(nil) }
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)

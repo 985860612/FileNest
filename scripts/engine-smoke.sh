@@ -11,7 +11,7 @@ if [ ! -f "$ENGINE_ROOT/libsevenzipbridge.dylib" ]; then
 fi
 
 mkdir -p "$SMOKE_ROOT/input/nested"
-printf 'SevenZip Mac SDK smoke test\n' > "$SMOKE_ROOT/input/fixture.txt"
+printf 'FileNest SDK smoke test\n' > "$SMOKE_ROOT/input/fixture.txt"
 printf 'nested content\n' > "$SMOKE_ROOT/input/nested/inside.txt"
 
 if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode-beta.app/Contents/Developer ]; then

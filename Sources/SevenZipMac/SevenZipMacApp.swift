@@ -6,7 +6,7 @@ struct SevenZipMacApp: App {
     @StateObject private var model = WorkspaceModel()
 
     var body: some Scene {
-        Window("SevenZip Mac", id: "main") {
+        Window("文件台", id: "main") {
             ContentView(model: model)
         }
         .windowStyle(.titleBar)
@@ -24,7 +24,7 @@ struct SevenZipMacApp: App {
 
         Settings {
             VStack(alignment: .leading, spacing: 12) {
-                Text("SevenZip Mac")
+                Text("文件台 · FileNest")
                     .font(.title2.weight(.semibold))
                 Text("进程内使用 7-Zip SDK 26.02，不调用命令行工具。")
                 Text("RAR 仅支持解压，不支持创建。")

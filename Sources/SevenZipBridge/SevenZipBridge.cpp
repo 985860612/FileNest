@@ -1251,7 +1251,7 @@ Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
 }
 
 
-// SevenZip Mac C ABI
+// FileNest C ABI
 
 static bool LoadCreateObject(const char *libraryPath,
     NDLL::CLibrary &library, Func_CreateObject &createObject)
