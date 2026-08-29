@@ -15,3 +15,9 @@ FileNest 的 `SevenZipBridge.cpp` 以官方 `Client7z` 示例为基础修改，�
 - [`ThirdParty/7zip/unRarLicense.txt`](ThirdParty/7zip/unRarLicense.txt)
 
 RAR 解码源码不得用于重新创建专有的 RAR 压缩算法。本项目不实现或提供 RAR 压缩。
+
+## NCM interoperability reference
+
+FileNest 的 NCM 互操作实现使用 macOS CommonCrypto，并由本项目以 Swift 独立实现；应用不捆绑或执行第三方 NCM 转换程序。
+
+开发过程中参考了公开的 [`taurusxin/ncmdump`](https://github.com/taurusxin/ncmdump) 项目对 NCM 容器结构的说明。该项目声明采用 MIT License。此处保留引用和致谢，方便审查算法来源与互操作行为。

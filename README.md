@@ -6,7 +6,7 @@
 [![Universal 2](https://img.shields.io/badge/Universal%202-Apple%20silicon%20%2B%20Intel-2867df)](https://github.com/985860612/FileNest/releases/latest)
 [![MIT License](https://img.shields.io/badge/license-MIT-15845d)](LICENSE)
 
-面向 macOS 的原生文件工作台，提供压缩解压、归档浏览、Finder 右键操作、Excel 文件管理与 Hash 校验。应用直接加载 7-Zip SDK 26.02，通过 C ABI 在进程内执行归档操作，不启动 `7z`、`7zz` 或其他命令行子进程。
+面向 macOS 的原生文件工作台，提供压缩解压、归档浏览、NCM 音频恢复、Finder 右键操作、Excel 文件管理与 Hash 校验。应用直接加载 7-Zip SDK 26.02，通过 C ABI 在进程内执行归档操作，不启动 `7z`、`7zz` 或其他命令行子进程。
 
 [产品官网](https://985860612.github.io/FileNest/) · [下载最新版](https://github.com/985860612/FileNest/releases/latest) · [反馈问题](https://github.com/985860612/FileNest/issues)
 
@@ -20,6 +20,7 @@
 - Finder 快速操作：解压到同名文件夹、压缩为 7z/ZIP、导出文件夹 XLSX 清单
 - 默认排除 `.DS_Store`、`._*`、`__MACOSX` 等 macOS 元数据
 - 本地计算和校验 MD5、SHA-1、SHA-256、SHA-512
+- 在本机批量恢复 NCM 中的原始 MP3/FLAC，不上传、不重新编码；支持标题、歌手、专辑和封面元数据
 - 导出 XLSX 文件目录，并按 XLSX 路径列批量复制或移动到废纸篓
 - 实时进度、当前文件、任务取消、路径穿越防护和事务式归档输出
 - Universal 2：同时支持 Apple silicon 和 Intel Mac
@@ -63,12 +64,13 @@ SEVENZIP_ENGINE_INTEGRATION=1 swift test
 ./scripts/build-app.sh
 ```
 
-架构：`SwiftUI / AppKit / Finder Services → ArchiveEngine → libsevenzipbridge.dylib → 7-Zip Format7zF`。
+架构：`SwiftUI / AppKit / Finder Services → ArchiveEngine / NCMConversionService → 7-Zip SDK / CommonCrypto`。
 
 ## 隐私与安全
 
 - 不联网、不上传文件、不采集遥测，不要求管理员权限
 - 不调用 shell 或归档命令行程序
+- NCM 转换只恢复文件中已有的音频数据，请仅处理你有权使用的文件
 - 拒绝归档条目中的绝对路径和 `..` 父目录路径
 - 输出归档只有完整成功后才从 `.partial` 改为最终文件名
 - Finder 解压默认写入新的同名目录，避免覆盖已有文件
