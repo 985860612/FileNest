@@ -63,6 +63,7 @@ import Foundation
         }
 
         let destination = FileCatalogService.desktopExportURL(for: directory, desktop: desktop)
+        prepareForAuxiliaryWindow()
         NSApp.hide(nil)
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -115,6 +116,11 @@ import Foundation
     }
 
     private func present(_ request: FinderActionRequest) {
+        prepareForAuxiliaryWindow()
         FinderOperationWindowController.shared.present(request)
+    }
+
+    private func prepareForAuxiliaryWindow() {
+        AppDelegate.shared?.prepareForAuxiliaryWindow()
     }
 }
