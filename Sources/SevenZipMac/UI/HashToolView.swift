@@ -181,6 +181,7 @@ struct HashToolView: View {
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .fileNestFormControl()
                 }
                 VStack(alignment: .leading, spacing: 10) {
                     Text("期望 Hash")
@@ -188,6 +189,7 @@ struct HashToolView: View {
                     TextField("粘贴 Hash 进行校验（可选）", text: $model.expectedHash)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
+                        .fileNestFormControl()
                     Text("单文件校验时粘贴官网或发布页提供的 Hash；结果会自动忽略大小写。")
                         .font(.caption)
                         .foregroundStyle(.secondary)

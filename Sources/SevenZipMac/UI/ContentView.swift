@@ -153,8 +153,9 @@ struct ContentView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .frame(height: 54)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .background(FileNestTheme.panelBackground)
         }
         .background(FileNestTheme.sidebarBackground)
     }
@@ -180,7 +181,7 @@ struct ContentView: View {
             HStack(spacing: 10) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(item.tint.opacity(selected ? 0.20 : 0.11))
+                        .fill(item.tint.opacity(selected ? 0.25 : 0.14))
                     Image(systemName: item.systemImage)
                         .font(.system(size: 13, weight: .semibold))
                         .symbolRenderingMode(.monochrome)
@@ -196,7 +197,7 @@ struct ContentView: View {
             .frame(height: 38)
             .contentShape(Rectangle())
             .background(
-                selected ? item.tint.opacity(0.12) : Color.clear,
+                selected ? item.tint.opacity(0.18) : Color.clear,
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
         }
@@ -483,6 +484,7 @@ struct ContentView: View {
                             }
                             .labelsHidden()
                             .frame(width: 135)
+                            .fileNestFormControl()
                         }
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
@@ -504,6 +506,7 @@ struct ContentView: View {
                                 }
                                 .labelsHidden()
                                 .frame(width: 135)
+                                .fileNestFormControl()
                             }
                         }
                     }
@@ -516,11 +519,13 @@ struct ContentView: View {
                             }
                             .labelsHidden()
                             .frame(width: 135)
+                            .fileNestFormControl()
                         }
                         if model.volumePreset == .custom {
                             HStack {
                                 TextField("大小", value: $model.customVolumeMegabytes, format: .number)
                                     .textFieldStyle(.roundedBorder)
+                                    .fileNestFormControl()
                                 Text("MB")
                                     .foregroundStyle(.secondary)
                             }
@@ -542,6 +547,7 @@ struct ContentView: View {
                 settingsSection("安全") {
                     SecureField(selectedDestination == .extract ? "归档密码（如需要）" : "密码（可选）", text: $model.password)
                         .textFieldStyle(.roundedBorder)
+                        .fileNestFormControl()
                         .onSubmit {
                             if selectedDestination == .extract {
                                 model.refreshArchiveContents()
@@ -566,7 +572,7 @@ struct ContentView: View {
             }
             .padding(16)
         }
-        .background(FileNestTheme.sidebarBackground)
+        .background(FileNestTheme.workspaceBackground)
         .disabled(model.isWorking)
     }
 
