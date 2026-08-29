@@ -42,4 +42,52 @@ struct FinderOperationTests {
             inputCount: 1
         ) == root)
     }
+
+    @Test("Archive progress never moves backwards between callbacks")
+    func archiveProgressIsMonotonic() {
+        #expect(FinderOperationModel.monotonicProgress(current: nil, incoming: 0.2) == 0.2)
+        #expect(FinderOperationModel.monotonicProgress(current: 0.7, incoming: 0) == 0.7)
+        #expect(FinderOperationModel.monotonicProgress(current: 0.7, incoming: 0.9) == 0.9)
+        #expect(FinderOperationModel.monotonicProgress(current: 0.7, incoming: nil) == 0.7)
+
+        let compression = ArchiveEngine.scaledProgress(
+            ArchiveProgress(completed: 50, total: 100, currentPath: "payload"),
+            from: 0,
+            to: 0.9
+        )
+        let splitting = ArchiveEngine.scaledProgress(
+            ArchiveProgress(completed: 50, total: 100, currentPath: "payload.001"),
+            from: 0.9,
+            to: 1
+        )
+        #expect(compression.fraction == 0.45)
+        #expect(splitting.fraction == 0.95)
+    }
+
+    @Test("Archive browser only exposes one directory level at a time")
+    func archiveBrowserBuildsDirectoryLevels() {
+        let entries = [
+            ArchiveEntry(path: "project/README.md", size: 120, directory: false),
+            ArchiveEntry(path: "project/Sources/main.swift", size: 240, directory: false),
+            ArchiveEntry(path: "license.txt", size: 80, directory: false)
+        ]
+
+        let root = FinderOperationModel.browserItems(entries: entries, directory: "", searchText: "")
+        #expect(root.map(\.name) == ["project", "license.txt"])
+        #expect(root.first?.directory == true)
+
+        let project = FinderOperationModel.browserItems(
+            entries: entries,
+            directory: "project",
+            searchText: ""
+        )
+        #expect(project.map(\.name) == ["Sources", "README.md"])
+
+        let search = FinderOperationModel.browserItems(
+            entries: entries,
+            directory: "project",
+            searchText: "main"
+        )
+        #expect(search.map(\.path) == ["project/Sources/main.swift"])
+    }
 }

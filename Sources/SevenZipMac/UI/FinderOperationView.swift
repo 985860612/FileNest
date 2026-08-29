@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct FinderOperationView: View {
     @ObservedObject var model: FinderOperationModel
@@ -256,7 +257,7 @@ struct FinderOperationView: View {
                         .truncationMode(.middle)
                 }
                 Spacer()
-                Text("\(model.filteredEntries.count) 项")
+                Text("共 \(model.entries.count) 项")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -267,16 +268,38 @@ struct FinderOperationView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Table(model.filteredEntries) {
-                    TableColumn("路径") { entry in
-                        Label(entry.path, systemImage: entry.directory ? "folder" : "doc")
-                            .lineLimit(1)
+                HStack(spacing: 8) {
+                    Button(action: model.browseUp) {
+                        Label("上一级", systemImage: "chevron.left")
                     }
-                    TableColumn("类型") { entry in
-                        Text(entry.directory ? "文件夹" : "文件").foregroundStyle(.secondary)
+                    .disabled(!model.canBrowseUp)
+                    Text(model.browserLocationTitle)
+                        .font(.callout.weight(.medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                    Text("\(model.browserItems.count) 项")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Table(model.browserItems, selection: $model.browserSelection) {
+                    TableColumn("名称") { item in
+                        HStack(spacing: 7) {
+                            Image(nsImage: browserIcon(for: item))
+                                .resizable()
+                                .frame(width: 18, height: 18)
+                            Text(model.isBrowserSearching ? item.path : item.name)
+                                .lineLimit(1)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) { model.openBrowserItem(item) }
                     }
-                    .width(82)
-                    TableColumn("大小") { entry in sizeText(entry) }
+                    TableColumn("类型") { item in
+                        Text(item.directory ? "文件夹" : fileKind(for: item))
+                            .foregroundStyle(.secondary)
+                    }
+                    .width(100)
+                    TableColumn("大小") { item in browserSizeText(item) }
                         .width(100)
                 }
             }
@@ -288,7 +311,14 @@ struct FinderOperationView: View {
         VStack(spacing: 8) {
             if model.isWorking {
                 if let progress = model.progressFraction {
-                    ProgressView(value: progress)
+                    HStack(spacing: 10) {
+                        ProgressView(value: progress)
+                            .animation(.easeOut(duration: 0.18), value: progress)
+                        Text("\(Int(progress * 100))%")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(width: 34, alignment: .trailing)
+                    }
                 } else {
                     ProgressView()
                 }
@@ -310,7 +340,7 @@ struct FinderOperationView: View {
                 }
                 if model.isWorking {
                     Button("取消", action: model.cancel)
-                } else if !model.isBrowseOnly {
+                } else if !model.isBrowseOnly, model.resultURLs.isEmpty {
                     Button(model.actionTitle, action: model.start)
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.return, modifiers: [.command])
@@ -342,5 +372,28 @@ struct FinderOperationView: View {
         Text(entry.directory ? "—" : ByteCountFormatter.string(fromByteCount: Int64(clamping: entry.size), countStyle: .file))
             .foregroundStyle(.secondary)
             .monospacedDigit()
+    }
+
+    private func browserSizeText(_ item: ArchiveBrowserItem) -> some View {
+        Text(item.directory ? "—" : ByteCountFormatter.string(
+            fromByteCount: Int64(clamping: item.size),
+            countStyle: .file
+        ))
+        .foregroundStyle(.secondary)
+        .monospacedDigit()
+    }
+
+    private func browserIcon(for item: ArchiveBrowserItem) -> NSImage {
+        if item.directory {
+            return NSWorkspace.shared.icon(for: .folder)
+        }
+        let fileExtension = (item.name as NSString).pathExtension
+        return NSWorkspace.shared.icon(for: UTType(filenameExtension: fileExtension) ?? .data)
+    }
+
+    private func fileKind(for item: ArchiveBrowserItem) -> String {
+        let fileExtension = (item.name as NSString).pathExtension
+        guard !fileExtension.isEmpty else { return "文件" }
+        return UTType(filenameExtension: fileExtension)?.localizedDescription ?? fileExtension.uppercased()
     }
 }

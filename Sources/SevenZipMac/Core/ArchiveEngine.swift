@@ -126,7 +126,15 @@ final class ArchiveEngine: @unchecked Sendable {
             guard let pointer else { return nil }
             return UnsafePointer<CChar>(pointer)
         }
-        let box = CallbackBox(cancellation: cancellation, progress: progress)
+        let compressionProgress: @Sendable (ArchiveProgress) -> Void
+        if volumeSize > 0 {
+            compressionProgress = { update in
+                progress(Self.scaledProgress(update, from: 0, to: 0.9))
+            }
+        } else {
+            compressionProgress = progress
+        }
+        let box = CallbackBox(cancellation: cancellation, progress: compressionProgress)
         let context = Unmanaged.passUnretained(box).toOpaque()
         let result = enginePath.withCString { engine in
             destination.path.withCString { destinationPath in
@@ -153,7 +161,9 @@ final class ArchiveEngine: @unchecked Sendable {
                     archive: destination,
                     volumeSize: volumeSize,
                     cancellation: cancellation,
-                    progress: progress
+                    progress: { update in
+                        progress(Self.scaledProgress(update, from: 0.9, to: 1))
+                    }
                 )
             } catch {
                 try? FileManager.default.removeItem(at: destination)
@@ -183,6 +193,23 @@ final class ArchiveEngine: @unchecked Sendable {
 
     private func lastError() -> String {
         lastErrorFunction().map { String(cString: $0) } ?? "未知的 7-Zip 错误"
+    }
+
+    static func scaledProgress(
+        _ progress: ArchiveProgress,
+        from lowerBound: Double,
+        to upperBound: Double
+    ) -> ArchiveProgress {
+        guard let fraction = progress.fraction else {
+            return ArchiveProgress(completed: 0, total: 0, currentPath: progress.currentPath)
+        }
+        let scale: UInt64 = 10_000
+        let mapped = lowerBound + fraction * (upperBound - lowerBound)
+        return ArchiveProgress(
+            completed: UInt64((mapped * Double(scale)).rounded()),
+            total: scale,
+            currentPath: progress.currentPath
+        )
     }
 
     private static var defaultEngineDirectory: URL {
