@@ -30,6 +30,7 @@ final class FinderOperationWindowController: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.contentViewController = NSHostingController(rootView: rootView)
+        window.setContentSize(size)
         window.center()
         windows[id] = window
         models[id] = model
