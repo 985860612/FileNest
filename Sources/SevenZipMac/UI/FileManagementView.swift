@@ -264,6 +264,6 @@ struct FileManagementView: View {
         .padding(.leading, WorkspaceLayout.leadingInset)
         .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 11)
-        .background(.bar)
+        .background(FileNestTheme.panelBackground)
     }
 }

@@ -331,7 +331,7 @@ struct ContentView: View {
                 .controlSize(.large)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(dropTargeted ? selectedDestination.tint.opacity(0.08) : FileNestTheme.panelBackground)
+        .background(dropTargeted ? selectedDestination.tint.opacity(0.10) : FileNestTheme.recessedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -458,7 +458,7 @@ struct ContentView: View {
                 }
             }
         }
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(FileNestTheme.panelBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -649,7 +649,7 @@ struct ContentView: View {
         .padding(.leading, WorkspaceLayout.leadingInset)
         .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 13)
-        .background(.bar)
+        .background(FileNestTheme.panelBackground)
     }
 }
 

@@ -75,7 +75,7 @@ struct HashToolView: View {
                 .controlSize(.large)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(dropTargeted ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
+        .background(dropTargeted ? FileNestTheme.violet.opacity(0.10) : FileNestTheme.recessedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -206,7 +206,7 @@ struct HashToolView: View {
             }
             .padding(20)
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45))
+        .background(FileNestTheme.sidebarBackground)
         .disabled(model.isWorking)
     }
 
@@ -235,7 +235,7 @@ struct HashToolView: View {
         .padding(.leading, WorkspaceLayout.leadingInset)
         .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 13)
-        .background(.bar)
+        .background(FileNestTheme.panelBackground)
     }
 
     @ViewBuilder

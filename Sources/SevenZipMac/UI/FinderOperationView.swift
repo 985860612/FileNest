@@ -18,7 +18,7 @@ struct FinderOperationView: View {
             Divider()
             footer
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(FileNestTheme.workspaceBackground)
         .alert("操作失败", isPresented: Binding(
             get: { model.errorMessage != nil },
             set: { if !$0 { model.errorMessage = nil } }
@@ -89,7 +89,7 @@ struct FinderOperationView: View {
                     if url != model.selectedURLs.last { Divider().padding(.leading, 47) }
                 }
             }
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 9))
+            .background(FileNestTheme.panelBackground, in: RoundedRectangle(cornerRadius: 9))
             .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(Color(nsColor: .separatorColor)) }
             .frame(maxHeight: 150)
         }
@@ -353,7 +353,7 @@ struct FinderOperationView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(.bar)
+        .background(FileNestTheme.panelBackground)
     }
 
     private func sectionTitle(_ title: String) -> some View {
