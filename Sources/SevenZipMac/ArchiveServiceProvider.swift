@@ -77,10 +77,18 @@ import Foundation
     }
 
     private func fileURLs(from pasteboard: NSPasteboard) -> [URL]? {
-        pasteboard.readObjects(
+        if let urls = pasteboard.readObjects(
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]
-        ) as? [URL]
+        ) as? [URL], !urls.isEmpty {
+            return urls
+        }
+
+        let filenamesType = NSPasteboard.PasteboardType("NSFilenamesPboardType")
+        guard let paths = pasteboard.propertyList(forType: filenamesType) as? [String] else {
+            return nil
+        }
+        return paths.map { URL(fileURLWithPath: $0) }
     }
 
     private func runServiceJob(_ work: @escaping @Sendable () throws -> [URL]) {
