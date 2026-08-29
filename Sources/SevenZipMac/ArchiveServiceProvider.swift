@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 
+@MainActor
 @objc final class ArchiveServiceProvider: NSObject {
     @objc func extractToNamedFolder(
         _ pasteboard: NSPasteboard,
@@ -45,7 +46,7 @@ import Foundation
         present(FinderActionRequest(action: .browse, urls: [archive]))
     }
 
-    @MainActor @objc func exportFolderCatalog(
+    @objc func exportFolderCatalog(
         _ pasteboard: NSPasteboard,
         userData: String,
         error: AutoreleasingUnsafeMutablePointer<NSString?>
@@ -114,8 +115,6 @@ import Foundation
     }
 
     private func present(_ request: FinderActionRequest) {
-        Task { @MainActor in
-            FinderOperationWindowController.shared.present(request)
-        }
+        FinderOperationWindowController.shared.present(request)
     }
 }
