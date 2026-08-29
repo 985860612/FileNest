@@ -243,6 +243,7 @@ Z7_COM7F_IMF(CArchiveOpenCallback::CryptoGetTextPassword(BSTR *password))
     PasswordIsDefined = true;
 #else
     PrintError("Password is not defined");
+    SetLastError("Password required");
     return E_ABORT;
 #endif
   }
@@ -630,6 +631,11 @@ Z7_COM7F_IMF(CArchiveExtractCallback::SetOperationResult(Int32 operationResult))
       {
         Print("Error : ");
         Print(s);
+        if (g_LastError.empty() && PasswordIsDefined &&
+            (operationResult == NArchive::NExtract::NOperationResult::kCRCError ||
+             operationResult == NArchive::NExtract::NOperationResult::kDataError ||
+             operationResult == NArchive::NExtract::NOperationResult::kHeadersError))
+          SetLastError("Incorrect password or damaged archive");
       }
       else
       {
@@ -669,6 +675,7 @@ Z7_COM7F_IMF(CArchiveExtractCallback::CryptoGetTextPassword(BSTR *password))
     PasswordIsDefined = true;
 #else
     PrintError("Password is not defined");
+    SetLastError("Password required");
     return E_ABORT;
 #endif
   }
@@ -1343,7 +1350,10 @@ static bool OpenInputArchive(Func_CreateObject createObject,
       return true;
     }
   }
-  SetLastError("Unsupported archive, damaged archive, or incorrect password");
+  if (g_LastError.empty())
+    SetLastError(password && password[0] != 0
+        ? "Incorrect password or damaged archive"
+        : "Unsupported or damaged archive");
   return false;
 }
 

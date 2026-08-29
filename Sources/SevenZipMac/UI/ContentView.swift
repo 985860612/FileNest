@@ -120,6 +120,14 @@ struct ContentView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
+        .alert("需要归档密码", isPresented: $model.showsPasswordPrompt) {
+            SecureField("归档密码", text: $model.password)
+            Button("取消", role: .cancel, action: model.cancelArchivePassword)
+            Button("继续", action: model.submitArchivePassword)
+                .disabled(model.password.isEmpty)
+        } message: {
+            Text(model.passwordPromptMessage)
+        }
         .onAppear { synchronize(with: selectedDestination) }
         .onChange(of: destination) { newValue in
             if let newValue { synchronize(with: newValue) }
@@ -274,10 +282,12 @@ struct ContentView: View {
             HStack(spacing: 0) {
                 fileSelectionPanel
                     .frame(minWidth: 380, maxWidth: .infinity, maxHeight: .infinity)
-                Divider()
-                archiveOptionsPanel
-                    .frame(width: 300)
-                    .frame(maxHeight: .infinity)
+                if selectedDestination == .compress {
+                    Divider()
+                    archiveOptionsPanel
+                        .frame(width: 300)
+                        .frame(maxHeight: .infinity)
+                }
             }
             Divider()
             archiveStatusBar
@@ -433,7 +443,7 @@ struct ContentView: View {
             } else if let message = model.archivePreviewError {
                 MacEmptyState(
                     title: "无法读取归档内容",
-                    message: "\(message)\n如果归档已加密，请在右侧输入密码后重新读取。",
+                    message: message,
                     systemImage: "lock.trianglebadge.exclamationmark",
                     actionTitle: "重新读取",
                     action: model.refreshArchiveContents
@@ -445,23 +455,57 @@ struct ContentView: View {
                     systemImage: "archivebox"
                 )
             } else {
-                Table(model.archiveEntries) {
-                    TableColumn("名称") { entry in
-                        Label(entry.displayName, systemImage: entry.directory ? "folder" : "doc")
-                            .lineLimit(1)
-                    }
-                    TableColumn("所在目录") { entry in
-                        Text(entry.parentPath)
-                            .foregroundStyle(.secondary)
+                VStack(spacing: 0) {
+                    HStack(spacing: 10) {
+                        Button(action: model.browseArchiveUp) {
+                            Label("上一级", systemImage: "chevron.left")
+                        }
+                        .disabled(!model.canBrowseArchiveUp)
+                        Text(model.archiveBrowserTitle)
+                            .font(.subheadline.weight(.medium))
                             .lineLimit(1)
                             .truncationMode(.middle)
-                    }
-                    TableColumn("大小") { entry in
-                        Text(entry.formattedSize)
+                        Spacer()
+                        Text("当前层级 \(model.archiveBrowserItems.count) 项")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
-                            .monospacedDigit()
                     }
-                    .width(min: 72, ideal: 90)
+                    .padding(.horizontal, 12)
+                    .frame(height: 42)
+                    Divider()
+                    Table(model.archiveBrowserItems) {
+                        TableColumn("名称") { item in
+                            if item.directory {
+                                Button {
+                                    model.openArchiveBrowserItem(item)
+                                } label: {
+                                    HStack {
+                                        Label(item.name, systemImage: "folder")
+                                            .lineLimit(1)
+                                        Spacer(minLength: 4)
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                Label(item.name, systemImage: "doc")
+                                    .lineLimit(1)
+                            }
+                        }
+                        TableColumn("类型") { item in
+                            Text(item.directory ? "文件夹" : "文件")
+                                .foregroundStyle(.secondary)
+                        }
+                        .width(min: 80, ideal: 100)
+                        TableColumn("大小") { item in
+                            Text(item.formattedSize)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        .width(min: 72, ideal: 90)
+                    }
                 }
             }
         }
@@ -551,15 +595,10 @@ struct ContentView: View {
                     }
                 }
                 settingsSection("安全") {
-                    SecureField(selectedDestination == .extract ? "归档密码（如需要）" : "密码（可选）", text: $model.password)
+                    SecureField("密码（可选）", text: $model.password)
                         .textFieldStyle(.roundedBorder)
                         .fileNestFormControl()
-                        .onSubmit {
-                            if selectedDestination == .extract {
-                                model.refreshArchiveContents()
-                            }
-                        }
-                    if selectedDestination == .compress, model.format == .tar, !model.password.isEmpty {
+                    if model.format == .tar, !model.password.isEmpty {
                         Label("TAR 不支持密码保护", systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)
                             .foregroundStyle(.orange)
@@ -657,22 +696,10 @@ struct ContentView: View {
     }
 }
 
-private extension ArchiveEntry {
-    var displayName: String {
-        let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        return (trimmedPath as NSString).lastPathComponent
-    }
-
-    var parentPath: String {
-        let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let parent = (trimmedPath as NSString).deletingLastPathComponent
-        return parent.isEmpty ? "—" : parent
-    }
-
+private extension ArchiveBrowserItem {
     var formattedSize: String {
         guard !directory else { return "—" }
-        let byteCount = Int64(clamping: size)
-        return ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file)
+        return ByteCountFormatter.string(fromByteCount: Int64(clamping: size), countStyle: .file)
     }
 }
 

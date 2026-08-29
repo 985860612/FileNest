@@ -19,12 +19,21 @@ final class WorkspaceModel: ObservableObject {
     @Published var statusMessage = "把文件拖到这里，或从 Finder 选择"
     @Published var errorMessage: String?
     @Published var archiveEntries: [ArchiveEntry] = []
+    @Published var archiveBrowserPath = ""
     @Published var isLoadingArchiveContents = false
     @Published var archivePreviewError: String?
+    @Published var showsPasswordPrompt = false
+    @Published var passwordPromptMessage = ""
 
     private var cancellation: ArchiveCancellation?
     private var previewRequestID = UUID()
+    private var passwordRetryAction: PasswordRetryAction?
     private let engine: ArchiveEngine
+
+    private enum PasswordRetryAction {
+        case preview
+        case extract
+    }
 
     init(engine: ArchiveEngine = .shared) {
         self.engine = engine
@@ -50,6 +59,20 @@ final class WorkspaceModel: ObservableObject {
         format == .sevenZip ? dictionarySize.rawValue : 0
     }
 
+    var archiveBrowserItems: [ArchiveBrowserItem] {
+        FinderOperationModel.browserItems(
+            entries: archiveEntries,
+            directory: archiveBrowserPath,
+            searchText: ""
+        )
+    }
+
+    var archiveBrowserTitle: String {
+        archiveBrowserPath.isEmpty ? "归档根目录" : archiveBrowserPath
+    }
+
+    var canBrowseArchiveUp: Bool { !archiveBrowserPath.isEmpty }
+
     var actionTitle: String {
         switch mode {
         case .extract: "解压"
@@ -72,9 +95,13 @@ final class WorkspaceModel: ObservableObject {
         selectedURLs = Array(NSOrderedSet(array: normalized).array.compactMap { $0 as? URL })
         if selectedURLs.count == 1, ArchiveUtilities.looksLikeArchive(selectedURLs[0]) {
             mode = .extract
+            password = ""
         } else {
             mode = .compress
         }
+        showsPasswordPrompt = false
+        passwordRetryAction = nil
+        archiveBrowserPath = ""
         statusMessage = "已选择 \(selectedURLs.count) 项"
         errorMessage = nil
         refreshArchiveContents()
@@ -90,6 +117,9 @@ final class WorkspaceModel: ObservableObject {
 
     func clear() {
         selectedURLs.removeAll()
+        password = ""
+        showsPasswordPrompt = false
+        passwordRetryAction = nil
         errorMessage = nil
         statusMessage = "把文件拖到这里，或从 Finder 选择"
         resetArchivePreview()
@@ -112,6 +142,7 @@ final class WorkspaceModel: ObservableObject {
         archiveEntries = []
         archivePreviewError = nil
         isLoadingArchiveContents = true
+        archiveBrowserPath = ""
         statusMessage = "正在读取归档内容…"
         let password = password
         let engine = engine
@@ -128,9 +159,7 @@ final class WorkspaceModel: ObservableObject {
             } catch {
                 DispatchQueue.main.async {
                     guard let self, self.previewRequestID == requestID else { return }
-                    self.archivePreviewError = error.localizedDescription
-                    self.isLoadingArchiveContents = false
-                    self.statusMessage = "无法读取归档内容"
+                    self.finishArchivePreview(with: error)
                 }
             }
         }
@@ -203,10 +232,42 @@ final class WorkspaceModel: ObservableObject {
                 }
             } catch {
                 DispatchQueue.main.async {
-                    self?.finishWithError(error.localizedDescription)
+                    self?.finishWithError(error)
                 }
             }
         }
+    }
+
+    func submitArchivePassword() {
+        guard !password.isEmpty, let action = passwordRetryAction else { return }
+        showsPasswordPrompt = false
+        passwordRetryAction = nil
+        switch action {
+        case .preview:
+            refreshArchiveContents()
+        case .extract:
+            start()
+        }
+    }
+
+    func openArchiveBrowserItem(_ item: ArchiveBrowserItem) {
+        guard item.directory else { return }
+        archiveBrowserPath = item.path
+    }
+
+    func browseArchiveUp() {
+        guard canBrowseArchiveUp else { return }
+        archiveBrowserPath = archiveBrowserPath
+            .split(separator: "/")
+            .dropLast()
+            .joined(separator: "/")
+    }
+
+    func cancelArchivePassword() {
+        showsPasswordPrompt = false
+        passwordRetryAction = nil
+        password = ""
+        statusMessage = "已取消输入密码"
     }
 
     func cancel() {
@@ -234,16 +295,53 @@ final class WorkspaceModel: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([output])
     }
 
-    private func finishWithError(_ message: String) {
+    private func finishWithError(_ error: Error) {
         isWorking = false
         cancellation = nil
+        if requestPasswordIfNeeded(for: error, retrying: .extract) { return }
+        let message = error.localizedDescription
         errorMessage = message
         statusMessage = message == "Cancelled" ? "已取消" : "操作失败"
+    }
+
+    private func finishArchivePreview(with error: Error) {
+        isLoadingArchiveContents = false
+        if requestPasswordIfNeeded(for: error, retrying: .preview) { return }
+        archivePreviewError = error.localizedDescription
+        statusMessage = "无法读取归档内容"
+    }
+
+    @discardableResult
+    private func requestPasswordIfNeeded(
+        for error: Error,
+        retrying action: PasswordRetryAction
+    ) -> Bool {
+        guard let message = Self.passwordPrompt(for: error) else { return false }
+        password = ""
+        passwordPromptMessage = message
+        passwordRetryAction = action
+        archivePreviewError = nil
+        errorMessage = nil
+        showsPasswordPrompt = true
+        statusMessage = "此归档需要密码"
+        return true
+    }
+
+    nonisolated static func passwordPrompt(for error: Error) -> String? {
+        let message = error.localizedDescription.lowercased()
+        if message.contains("password required") {
+            return "此归档受密码保护，请输入密码后继续。"
+        }
+        if message.contains("incorrect password") {
+            return "密码不正确，请重新输入。归档损坏时也可能出现此提示。"
+        }
+        return nil
     }
 
     private func resetArchivePreview() {
         previewRequestID = UUID()
         archiveEntries = []
+        archiveBrowserPath = ""
         archivePreviewError = nil
         isLoadingArchiveContents = false
     }
