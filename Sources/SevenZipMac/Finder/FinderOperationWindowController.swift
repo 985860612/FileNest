@@ -12,7 +12,7 @@ final class FinderOperationWindowController: NSObject, NSWindowDelegate {
         let id = UUID()
         let model = FinderOperationModel(request: request)
         let size = request.action == .browse
-            ? NSSize(width: 780, height: 560)
+            ? NSSize(width: 1040, height: 720)
             : NSSize(width: 640, height: 680)
         let rootView = FinderOperationView(model: model) { [weak self] in
             self?.closeWindow(id: id)
@@ -25,7 +25,7 @@ final class FinderOperationWindowController: NSObject, NSWindowDelegate {
         )
         window.title = request.action.title
         window.minSize = request.action == .browse
-            ? NSSize(width: 680, height: 460)
+            ? NSSize(width: 820, height: 560)
             : NSSize(width: 560, height: 580)
         window.isReleasedWhenClosed = false
         window.delegate = self
