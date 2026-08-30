@@ -21,6 +21,9 @@ cp "$BIN_DIR/SevenZipMac" "$APP/Contents/MacOS/SevenZipMac"
 cp "$ROOT/.build/engine/7z.so" "$APP/Contents/Frameworks/7z.so"
 cp "$ROOT/.build/engine/libsevenzipbridge.dylib" \
   "$APP/Contents/Frameworks/libsevenzipbridge.dylib"
+if [ -d "$BIN_DIR/onnxruntime.framework" ]; then
+  cp -R "$BIN_DIR/onnxruntime.framework" "$APP/Contents/Frameworks/onnxruntime.framework"
+fi
 cp "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
 cp -R "$ROOT/ThirdParty/7zip" "$APP/Contents/Resources/7zip-licenses"
 

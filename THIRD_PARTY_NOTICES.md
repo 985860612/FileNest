@@ -21,3 +21,13 @@ RAR 解码源码不得用于重新创建专有的 RAR 压缩算法。本项目�
 FileNest 的 NCM 互操作实现使用 macOS CommonCrypto，并由本项目以 Swift 独立实现；应用不捆绑或执行第三方 NCM 转换程序。
 
 开发过程中参考了公开的 [`taurusxin/ncmdump`](https://github.com/taurusxin/ncmdump) 项目对 NCM 容器结构的说明。该项目声明采用 MIT License。此处保留引用和致谢，方便审查算法来源与互操作行为。
+
+## PaddleOCRCoreML
+
+FileNest 通过 Swift Package 引用独立的 `PaddleOCRCoreML` 原生 SDK。SDK 源码采用 Apache License 2.0，不包含 Python 运行时，也不捆绑 PaddleOCR 模型。
+
+SDK 使用 Microsoft ONNX Runtime 1.20.0 的 universal XCFramework；ONNX Runtime 采用 MIT License。PaddleOCR 模型由 PaddlePaddle 单独发布，模型下载与再分发需保留对应项目的 Apache License 2.0 声明。
+
+- [`985860612/PaddleOCRCoreML`](https://github.com/985860612/PaddleOCRCoreML)
+- [`microsoft/onnxruntime`](https://github.com/microsoft/onnxruntime)
+- [`PaddlePaddle/PaddleOCR`](https://github.com/PaddlePaddle/PaddleOCR)
