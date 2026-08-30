@@ -22,6 +22,11 @@ A native file workspace for macOS with archive creation, extraction and browsing
 - Compute and verify MD5, SHA-1, SHA-256, and SHA-512 locally
 - Restore the original MP3/FLAC stream from NCM files locally and in batches, without uploads or re-encoding; preserve title, artist, album, and cover metadata
 - Export XLSX inventories, batch-copy paths, or move matching files to the macOS Trash
+- Detect and repair missing file extensions, copy by regular expression, and preview safe file/folder name cleanup
+- Batch-compress and proportionally resize images, with JPEG, PNG, and HEIC conversion
+- Convert images to PDF, merge sorted PDF/image folders, and split text PDFs by keyword
+- Extract PDF text matches to XLSX and group, de-duplicate, and merge spreadsheet rows by a selected column
+- Include directories, parent folders, detected types, byte counts, and timestamps in catalog exports
 - Live progress, current-file reporting, cancellation, path-traversal protection, and transactional archive output
 - Universal 2 support for Apple silicon and Intel Macs
 
