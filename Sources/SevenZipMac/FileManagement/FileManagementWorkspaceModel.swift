@@ -15,6 +15,7 @@ final class FileManagementWorkspaceModel: ObservableObject {
     }
     @Published var directoryURL: URL?
     @Published var recursively = true
+    @Published var includeDirectories = false
     @Published var catalogEntries: [FileCatalogEntry] = []
     @Published var workbookURL: URL?
     @Published var sheet: XLSXSheet?
@@ -69,12 +70,14 @@ final class FileManagementWorkspaceModel: ObservableObject {
 
         beginWork(message: "正在扫描目录…")
         let recursively = recursively
+        let includeDirectories = includeDirectories
         let engine = engine
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
                 let entries = try FileCatalogService.scan(
                     directory: directoryURL,
                     recursively: recursively,
+                    includeDirectories: includeDirectories,
                     progress: { completed, path in
                         DispatchQueue.main.async {
                             self?.currentPath = path

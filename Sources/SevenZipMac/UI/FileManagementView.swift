@@ -83,6 +83,9 @@ struct FileManagementView: View {
                 Toggle("包含子文件夹", isOn: $model.recursively)
                     .toggleStyle(.checkbox)
                     .disabled(model.isWorking)
+                Toggle("在清单中包含目录", isOn: $model.includeDirectories)
+                    .toggleStyle(.checkbox)
+                    .disabled(model.isWorking)
                 Spacer()
                 Button("导出 XLSX…", action: model.exportDirectory)
                     .buttonStyle(.borderedProminent)
@@ -184,13 +187,17 @@ struct FileManagementView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 Table(model.catalogEntries) {
-                    TableColumn("文件名") { entry in
-                        Label(entry.fileName, systemImage: entry.fileExtension.isEmpty ? "doc" : "doc.fill")
+                    TableColumn("名称") { entry in
+                        Label(entry.fileName, systemImage: entry.isDirectory ? "folder.fill" : "doc.fill")
                             .lineLimit(1)
                     }
+                    TableColumn("类型") { entry in Text(entry.kindLabel) }
+                        .width(55)
                     TableColumn("扩展名") { entry in Text(entry.fileExtension) }
                         .width(80)
-                    TableColumn("大小") { entry in Text("\(entry.sizeInKilobytes) KB").monospacedDigit() }
+                    TableColumn("检测") { entry in Text(entry.detectedExtension) }
+                        .width(65)
+                    TableColumn("大小") { entry in Text(entry.formattedSize).monospacedDigit() }
                         .width(105)
                     TableColumn("完整路径") { entry in
                         Text(entry.fullPath)

@@ -12,7 +12,9 @@ let package = Package(
             name: "SevenZipMac",
             path: "Sources/SevenZipMac",
             linkerSettings: [
-                .linkedFramework("AppKit")
+                .linkedFramework("AppKit"),
+                .linkedFramework("PDFKit"),
+                .linkedFramework("ImageIO")
             ]
         ),
         .testTarget(

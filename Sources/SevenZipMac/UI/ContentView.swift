@@ -14,6 +14,10 @@ enum AppDestination: String, CaseIterable, Identifiable {
     case copyFiles
     case renameFiles
     case trashFiles
+    case fileTools
+    case imageTools
+    case pdfTools
+    case spreadsheetTools
     case hashVerification
     case ncmConversion
 
@@ -27,6 +31,10 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .copyFiles: "批量复制文件"
         case .renameFiles: "批量重命名文件"
         case .trashFiles: "移到废纸篓"
+        case .fileTools: "文件整理"
+        case .imageTools: "图片处理"
+        case .pdfTools: "PDF 工具"
+        case .spreadsheetTools: "Excel 分组合并"
         case .hashVerification: "Hash 校验"
         case .ncmConversion: "NCM 转换"
         }
@@ -40,6 +48,10 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .copyFiles: "按 Excel 中的源路径和目标路径复制文件"
         case .renameFiles: "按 Excel 中的文件路径和新文件名批量重命名"
         case .trashFiles: "按 Excel 路径预览并安全移除文件"
+        case .fileTools: "扩展名修复、正则复制与名称清理"
+        case .imageTools: "批量压缩、缩放和格式转换"
+        case .pdfTools: "图片转 PDF、排序合并、拆分与提取"
+        case .spreadsheetTools: "按指定列分组并合并其他列"
         case .hashVerification: "计算并验证文件的 MD5、SHA-1、SHA-256 或 SHA-512"
         case .ncmConversion: "在本机恢复 NCM 中的原始 MP3 或 FLAC 音频"
         }
@@ -53,6 +65,10 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .copyFiles: "doc.on.doc.fill"
         case .renameFiles: "pencil"
         case .trashFiles: "trash.fill"
+        case .fileTools: "wand.and.stars"
+        case .imageTools: "photo.on.rectangle.angled"
+        case .pdfTools: "doc.richtext.fill"
+        case .spreadsheetTools: "rectangle.3.group.fill"
         case .hashVerification: "checkmark.shield.fill"
         case .ncmConversion: "music.note.list"
         }
@@ -65,6 +81,10 @@ enum AppDestination: String, CaseIterable, Identifiable {
         case .copyFiles: FileNestTheme.teal
         case .renameFiles: FileNestTheme.orange
         case .trashFiles: FileNestTheme.red
+        case .fileTools: FileNestTheme.teal
+        case .imageTools: FileNestTheme.orange
+        case .pdfTools: FileNestTheme.violet
+        case .spreadsheetTools: FileNestTheme.green
         case .hashVerification: FileNestTheme.violet
         case .ncmConversion: FileNestTheme.orange
         }
@@ -88,6 +108,10 @@ struct ContentView: View {
     @StateObject private var fileManagementModel = FileManagementWorkspaceModel()
     @StateObject private var hashModel = HashWorkspaceModel()
     @StateObject private var ncmModel = NCMWorkspaceModel()
+    @StateObject private var fileToolsModel = FileToolsWorkspaceModel()
+    @StateObject private var imageToolsModel = ImageToolsWorkspaceModel()
+    @StateObject private var pdfToolsModel = PDFToolsWorkspaceModel()
+    @StateObject private var spreadsheetToolsModel = SpreadsheetToolsWorkspaceModel()
     @State private var destination: AppDestination? = .extract
     @State private var dropTargeted = false
     @State private var isSidebarVisible = true
@@ -152,6 +176,8 @@ struct ContentView: View {
         case .compress: model.mode = .compress
         case .exportCatalog, .copyFiles, .renameFiles, .trashFiles:
             if let mode = destination.fileManagementMode { fileManagementModel.mode = mode }
+        case .fileTools, .imageTools, .pdfTools, .spreadsheetTools:
+            break
         case .hashVerification:
             break
         case .ncmConversion:
@@ -165,6 +191,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     sidebarSection("归档", items: [.extract, .compress])
                     sidebarSection("Excel 文件管理", items: [.exportCatalog, .copyFiles, .renameFiles, .trashFiles])
+                    sidebarSection("文件与文档", items: [.fileTools, .imageTools, .pdfTools, .spreadsheetTools])
                     sidebarSection("工具", items: [.hashVerification, .ncmConversion])
                 }
                 .padding(.horizontal, 10)
@@ -234,6 +261,14 @@ struct ContentView: View {
             archiveWorkspace
         case .exportCatalog, .copyFiles, .renameFiles, .trashFiles:
             FileManagementView(model: fileManagementModel, destination: selectedDestination)
+        case .fileTools:
+            FileToolsView(model: fileToolsModel)
+        case .imageTools:
+            ImageToolsView(model: imageToolsModel)
+        case .pdfTools:
+            PDFToolsView(model: pdfToolsModel)
+        case .spreadsheetTools:
+            SpreadsheetToolsView(model: spreadsheetToolsModel)
         case .hashVerification:
             HashToolView(model: hashModel)
         case .ncmConversion:

@@ -21,9 +21,14 @@ enum FileManagementMode: String, CaseIterable, Identifiable {
 struct FileCatalogEntry: Identifiable, Equatable, Sendable {
     let fullPath: String
     let directory: String
+    let parentDirectoryName: String
     let fileName: String
     let fileExtension: String
+    let detectedExtension: String
     let sizeInBytes: UInt64
+    let creationDate: Date?
+    let modificationDate: Date?
+    let isDirectory: Bool
 
     var id: String { fullPath }
 
@@ -31,8 +36,32 @@ struct FileCatalogEntry: Identifiable, Equatable, Sendable {
         String(format: "%.2f", Double(sizeInBytes) / 1024)
     }
 
+    var formattedSize: String {
+        guard !isDirectory else { return "—" }
+        return ByteCountFormatter.string(fromByteCount: Int64(sizeInBytes), countStyle: .file)
+    }
+
+    var kindLabel: String { isDirectory ? "目录" : "文件" }
+
     var spreadsheetRow: [String] {
-        [fullPath, directory, fileName, fileExtension, sizeInKilobytes]
+        [
+            fullPath,
+            directory,
+            parentDirectoryName,
+            fileName,
+            kindLabel,
+            fileExtension,
+            detectedExtension,
+            String(sizeInBytes),
+            formattedSize,
+            Self.dateString(creationDate),
+            Self.dateString(modificationDate)
+        ]
+    }
+
+    private static func dateString(_ date: Date?) -> String {
+        guard let date else { return "" }
+        return ISO8601DateFormatter().string(from: date)
     }
 }
 
