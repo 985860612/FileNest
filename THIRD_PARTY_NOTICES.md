@@ -32,3 +32,12 @@ FileNest 构建并动态加载官方 libwebp，在进程内编码 WebP 图片。
 FileNest 的 NCM 互操作实现使用 macOS CommonCrypto，并由本项目以 Swift 独立实现；应用不捆绑或执行第三方 NCM 转换程序。
 
 开发过程中参考了公开的 [`taurusxin/ncmdump`](https://github.com/taurusxin/ncmdump) 项目对 NCM 容器结构的说明。该项目声明采用 MIT License。此处保留引用和致谢，方便审查算法来源与互操作行为。
+
+## PaddleOCRCoreML 0.3.0 / ONNX Runtime 1.20.0
+
+FileNest 通过独立的 [`PaddleOCRCoreML`](https://github.com/985860612/PaddleOCRCoreML) Swift SDK 在进程内运行 PP-OCRv5 与 PP-StructureV3，不包含 Python 运行时。PaddleOCRCoreML 与 PaddleOCR 模型采用 Apache License 2.0。
+
+SDK 链接 Microsoft ONNX Runtime 1.20.0 universal XCFramework。ONNX Runtime 采用 MIT License。识别模型在用户明确操作后从 PaddlePaddle 发布地址下载，并按固定 SHA-256 校验；模型不提交到本仓库。
+
+- [`PaddlePaddle/PaddleOCR`](https://github.com/PaddlePaddle/PaddleOCR)
+- [`microsoft/onnxruntime`](https://github.com/microsoft/onnxruntime)

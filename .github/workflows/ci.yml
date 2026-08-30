@@ -19,5 +19,7 @@ jobs:
         run: ./scripts/build-webp.sh
       - name: Run Swift and XLSX tests
         run: SEVENZIP_ENGINE_INTEGRATION=1 swift test
+      - name: Verify CLI JSON contract
+        run: ./scripts/cli-smoke.sh .build/debug/filenest-cli
       - name: Run archive engine smoke tests
         run: ./scripts/engine-smoke.sh

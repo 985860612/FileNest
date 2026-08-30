@@ -6,7 +6,7 @@ English · [简体中文](README.md)
 [![Universal 2](https://img.shields.io/badge/Universal%202-Apple%20silicon%20%2B%20Intel-2867df)](https://github.com/985860612/FileNest/releases/latest)
 [![MIT License](https://img.shields.io/badge/license-MIT-15845d)](LICENSE)
 
-A native file workspace for macOS with archive creation, extraction and browsing, local NCM audio recovery, Finder actions, Excel-based file management, and hash verification. FileNest loads the 7-Zip SDK 26.02 in process through a C ABI. It never launches `7z`, `7zz`, or another archive command-line process.
+A native file workspace for macOS with archive creation, extraction and browsing, native PP-StructureV3 document recognition, local NCM audio recovery, Finder actions, Excel-based file management, and hash verification. Archive and recognition workloads run through in-process native SDKs without Python, `7z`, `7zz`, or other processing subprocesses.
 
 [Product website](https://985860612.github.io/FileNest/en/) · [Download](https://github.com/985860612/FileNest/releases/latest) · [Report an issue](https://github.com/985860612/FileNest/issues)
 
@@ -26,6 +26,8 @@ A native file workspace for macOS with archive creation, extraction and browsing
 - Batch-compress and proportionally resize images, with JPEG, PNG, HEIC, and WebP conversion
 - Convert images to PDF, merge sorted PDF/image folders, and split text PDFs by keyword
 - Extract PDF text matches to XLSX and group, de-duplicate, and merge spreadsheet rows by a selected column
+- Batch-recognize images and PDFs with native PP-StructureV3: PP-OCRv5, layout, reading order, orientation/unwarping, and wired/wireless tables; export JSON, Markdown, HTML, DOCX, or XLSX
+- Reuse model sessions across a batch (default concurrency 2) and report total time, throughput, P50, and P95
 - Include directories, parent folders, detected types, byte counts, and timestamps in catalog exports
 - Live progress, current-file reporting, cancellation, path-traversal protection, and transactional archive output
 - Universal 2 support for Apple silicon and Intel Macs
@@ -57,7 +59,23 @@ cd FileNest
 open "dist/文件台.app"
 ```
 
-The build downloads the official 7-Zip 26.02 source archive, verifies its SHA-256 digest, builds arm64 and x86_64 full-format modules and bridge libraries, assembles a Universal 2 app, and applies an ad-hoc signature. Downloaded sources and build products stay under `.build/`.
+The build downloads and verifies the official 7-Zip 26.02 and libwebp source archives, builds arm64 and x86_64 artifacts, then assembles a Universal 2 app and a portable `dist/cli/filenest-cli` distribution with ONNX Runtime.
+
+## CLI / MCP interface
+
+`filenest-cli` writes only the final JSON response to stdout. Model progress and errors are JSON on stderr, providing a stable boundary for an MCP server or other automation.
+
+```bash
+dist/cli/filenest-cli version
+dist/cli/filenest-cli models status
+dist/cli/filenest-cli models download
+dist/cli/filenest-cli recognize --input ./documents --output ./results \
+  --format markdown --jobs 2
+```
+
+Formats are `json|markdown|html|docx|xlsx`, and `--input` may be repeated. Concurrency 2 is the balanced M-series default; concurrency 4 improves throughput with substantially higher peak memory. Server models use the verified CPU path because CoreML produced incomplete recognition output in validation.
+
+The 11 checksum-pinned catalog models cover OCR, layout, reading order, orientation/unwarping, and wired/wireless tables. Separately licensed formula/chart generation files can be placed under `Formula/{encoder.onnx,decoder.onnx,tokenizer.json}` and `Chart/{encoder.onnx,decoder.onnx,prompt_ids.txt,tokenizer.json}` in the model directory. They are loaded lazily; pass `--charts` to enable chart generation.
 
 ## Develop and verify
 
@@ -69,11 +87,11 @@ SEVENZIP_ENGINE_INTEGRATION=1 swift test
 ./scripts/build-app.sh
 ```
 
-Architecture: `SwiftUI / AppKit / Finder Services → ArchiveEngine / NCMConversionService → 7-Zip SDK / CommonCrypto`.
+Architecture: `SwiftUI / AppKit / filenest-cli → FileNestOCRCore / ArchiveEngine → PaddleOCRCoreML / ONNX Runtime / 7-Zip SDK`.
 
 ## Privacy and security
 
-- No network access, file uploads, telemetry, or administrator privileges
+- No network access except an explicit, checksum-verified model download; no file uploads, telemetry, or administrator privileges
 - No shell or archive command-line invocation
 - NCM conversion only restores audio already present in the source file; process files you are authorized to use
 - Absolute and parent-directory archive paths are rejected

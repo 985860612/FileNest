@@ -6,7 +6,7 @@
 [![Universal 2](https://img.shields.io/badge/Universal%202-Apple%20silicon%20%2B%20Intel-2867df)](https://github.com/985860612/FileNest/releases/latest)
 [![MIT License](https://img.shields.io/badge/license-MIT-15845d)](LICENSE)
 
-面向 macOS 的原生文件工作台，提供压缩解压、归档浏览、NCM 音频恢复、Finder 右键操作、Excel 文件管理与 Hash 校验。应用直接加载 7-Zip SDK 26.02，通过 C ABI 在进程内执行归档操作，不启动 `7z`、`7zz` 或其他命令行子进程。
+面向 macOS 的原生文件工作台，提供压缩解压、归档浏览、PP-StructureV3 文档识别、NCM 音频恢复、Finder 右键操作、Excel 文件管理与 Hash 校验。归档与识别均由原生 SDK 在进程内完成，不启动 Python、`7z`、`7zz` 或其他处理子进程。
 
 [产品官网](https://985860612.github.io/FileNest/) · [下载最新版](https://github.com/985860612/FileNest/releases/latest) · [反馈问题](https://github.com/985860612/FileNest/issues)
 
@@ -26,6 +26,8 @@
 - 批量压缩、等比例缩放图片并转换为 JPEG、PNG、HEIC 或 WebP
 - 图片转 PDF；按自定义关键字排序合并 PDF/图片；按关键字拆分文字型 PDF
 - 用正则批量提取 PDF 文本到 XLSX，并按指定 Excel 列分组、去重、合并
+- 原生 PP-StructureV3 批量识别图片/PDF：PP-OCRv5、版面、阅读顺序、方向/矫正及有线/无线表格；导出 JSON、Markdown、HTML、DOCX、XLSX
+- 共享模型会话与批量并发（默认 2）；界面显示总耗时、吞吐、P50/P95，模型下载后逐文件处理可离线完成
 - 目录清单可包含目录、父目录、实际文件类型、字节数、创建时间和修改时间
 - 实时进度、当前文件、任务取消、路径穿越防护和事务式归档输出
 - Universal 2：同时支持 Apple silicon 和 Intel Mac
@@ -57,7 +59,23 @@ cd FileNest
 open "dist/文件台.app"
 ```
 
-构建脚本下载官方 7-Zip 26.02 源码包并校验 SHA-256，分别编译 arm64 与 x86_64 的全格式动态库和桥接层，再组装 Universal 2 应用并临时签名。第三方源码与产物只保存在 `.build/`。
+构建脚本下载官方 7-Zip 26.02 与 libwebp 源码包并校验 SHA-256，分别编译 arm64 与 x86_64 产物，再组装 Universal 2 应用、`dist/cli/filenest-cli` 和 ONNX Runtime，并临时签名。第三方源码与中间产物只保存在 `.build/`。
+
+## CLI / MCP 接口
+
+`filenest-cli` 的 stdout 只写最终 JSON，模型下载进度与错误以 JSON 写入 stderr，便于 MCP server 或其他自动化工具稳定调用。
+
+```bash
+dist/cli/filenest-cli version
+dist/cli/filenest-cli models status
+dist/cli/filenest-cli models download
+dist/cli/filenest-cli recognize --input ./documents --output ./results \
+  --format markdown --jobs 2
+```
+
+支持 `json|markdown|html|docx|xlsx`；可重复传入 `--input`。`--jobs 2` 是 M 系列 Mac 的推荐平衡配置，`--jobs 4` 吞吐更高但峰值内存明显增加。当前 server 模型固定走实测结果一致的 CPU 路径；CoreML 虽可能更快，但已发现识别结果缺失，故不作为可选项。
+
+自动下载的 11 个校验模型覆盖 OCR、版面、阅读顺序、方向/矫正和有线/无线表格。公式与图表生成模型按上游许可单独提供时，可放到模型目录的 `Formula/{encoder.onnx,decoder.onnx,tokenizer.json}` 与 `Chart/{encoder.onnx,decoder.onnx,prompt_ids.txt,tokenizer.json}`；SDK 会惰性加载，CLI 用 `--charts` 开启图表生成。
 
 ## 开发与验证
 
@@ -69,11 +87,11 @@ SEVENZIP_ENGINE_INTEGRATION=1 swift test
 ./scripts/build-app.sh
 ```
 
-架构：`SwiftUI / AppKit / Finder Services → ArchiveEngine / NCMConversionService → 7-Zip SDK / CommonCrypto`。
+架构：`SwiftUI / AppKit / filenest-cli → FileNestOCRCore / ArchiveEngine → PaddleOCRCoreML / ONNX Runtime / 7-Zip SDK`。
 
 ## 隐私与安全
 
-- 不联网、不上传文件、不采集遥测，不要求管理员权限
+- 除用户主动下载并校验识别模型外，不联网、不上传文件、不采集遥测，不要求管理员权限
 - 不调用 shell 或归档命令行程序
 - NCM 转换只恢复文件中已有的音频数据，请仅处理你有权使用的文件
 - 拒绝归档条目中的绝对路径和 `..` 父目录路径
