@@ -789,6 +789,7 @@ struct TaskHeader: View {
         .padding(.leading, WorkspaceLayout.leadingInset)
         .padding(.trailing, WorkspaceLayout.trailingInset)
         .padding(.vertical, 15)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

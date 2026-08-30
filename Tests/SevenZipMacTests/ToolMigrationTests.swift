@@ -109,6 +109,28 @@ struct ToolMigrationTests {
         }
         #expect((properties[kCGImagePropertyPixelWidth] as? Int) == 40)
         #expect((properties[kCGImagePropertyPixelHeight] as? Int) == 20)
+
+        let webp = root.appendingPathComponent("sample.webp")
+        try ImageProcessingService.process(
+            source: source,
+            destination: webp,
+            options: ImageProcessingOptions(
+                maximumWidth: 30,
+                maximumHeight: 30,
+                quality: 0.75,
+                format: .webp,
+                replaceOriginals: false
+            )
+        )
+        let webpData = try Data(contentsOf: webp)
+        #expect(String(decoding: webpData.prefix(4), as: UTF8.self) == "RIFF")
+        guard let webpSource = CGImageSourceCreateWithURL(webp as CFURL, nil),
+              let webpProperties = CGImageSourceCopyPropertiesAtIndex(webpSource, 0, nil) as? [CFString: Any] else {
+            Issue.record("无法读取 WebP 输出")
+            return
+        }
+        #expect((webpProperties[kCGImagePropertyPixelWidth] as? Int) == 30)
+        #expect((webpProperties[kCGImagePropertyPixelHeight] as? Int) == 15)
     }
 
     @Test("Enhanced catalog includes directories, metadata and detected type")

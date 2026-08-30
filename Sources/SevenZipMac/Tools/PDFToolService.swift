@@ -261,7 +261,11 @@ enum PDFToolService {
         outputRoot: URL?,
         extension outputExtension: String
     ) -> URL {
-        let relative = String(source.path.dropFirst(root.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let sourcePath = source.resolvingSymlinksInPath().standardizedFileURL.path
+        let rootPath = root.resolvingSymlinksInPath().standardizedFileURL.path
+        let relative = sourcePath.hasPrefix(rootPath + "/")
+            ? String(sourcePath.dropFirst(rootPath.count + 1))
+            : source.lastPathComponent
         return (outputRoot?.appendingPathComponent(relative) ?? source)
             .deletingPathExtension().appendingPathExtension(outputExtension)
     }

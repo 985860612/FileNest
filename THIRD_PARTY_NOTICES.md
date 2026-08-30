@@ -16,6 +16,17 @@ FileNest 的 `SevenZipBridge.cpp` 以官方 `Client7z` 示例为基础修改，�
 
 RAR 解码源码不得用于重新创建专有的 RAR 压缩算法。本项目不实现或提供 RAR 压缩。
 
+## libwebp 1.6.0
+
+Copyright © 2010 Google Inc.
+
+FileNest 构建并动态加载官方 libwebp，在进程内编码 WebP 图片。libwebp 采用 BSD 3-Clause 风格许可证，并附带额外专利授权。
+
+许可证原文：
+
+- [`ThirdParty/webp/COPYING`](ThirdParty/webp/COPYING)
+- [`ThirdParty/webp/PATENTS`](ThirdParty/webp/PATENTS)
+
 ## NCM interoperability reference
 
 FileNest 的 NCM 互操作实现使用 macOS CommonCrypto，并由本项目以 Swift 独立实现；应用不捆绑或执行第三方 NCM 转换程序。

@@ -7,6 +7,7 @@ enum ImageOutputFormat: String, CaseIterable, Identifiable, Sendable {
     case jpeg = "JPEG"
     case png = "PNG"
     case heic = "HEIC"
+    case webp = "WebP"
 
     var id: String { rawValue }
 
@@ -18,6 +19,7 @@ enum ImageOutputFormat: String, CaseIterable, Identifiable, Sendable {
         case .jpeg: return .jpeg
         case .png: return .png
         case .heic: return .heic
+        case .webp: return .webP
         }
     }
 
@@ -27,6 +29,7 @@ enum ImageOutputFormat: String, CaseIterable, Identifiable, Sendable {
         case .jpeg: "jpg"
         case .png: "png"
         case .heic: "heic"
+        case .webp: "webp"
         }
     }
 }
@@ -64,7 +67,7 @@ enum ImageProcessingError: LocalizedError {
 }
 
 enum ImageProcessingService {
-    static let supportedExtensions = Set(["jpg", "jpeg", "png", "heic", "heif", "tif", "tiff", "gif", "bmp"])
+    static let supportedExtensions = Set(["jpg", "jpeg", "png", "heic", "heif", "tif", "tiff", "gif", "bmp", "webp"])
 
     static func imageFiles(in root: URL, recursively: Bool, fileManager: FileManager = .default) throws -> [URL] {
         let options: FileManager.DirectoryEnumerationOptions = recursively
@@ -128,15 +131,19 @@ enum ImageProcessingService {
         let temporary = destination.deletingLastPathComponent()
             .appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString).partial")
         defer { try? fileManager.removeItem(at: temporary) }
-        guard let output = CGImageDestinationCreateWithURL(temporary as CFURL, outputType.identifier as CFString, 1, nil) else {
-            throw ImageProcessingError.unsupportedOutput(destination.path)
-        }
-        var properties = (CGImageSourceCopyPropertiesAtIndex(sourceImage, 0, nil) as? [CFString: Any]) ?? [:]
-        properties[kCGImageDestinationLossyCompressionQuality] = min(max(options.quality, 0.01), 1.0)
-        properties[kCGImagePropertyOrientation] = 1
-        CGImageDestinationAddImage(output, image, properties as CFDictionary)
-        guard CGImageDestinationFinalize(output) else {
-            throw ImageProcessingError.encodingFailed(destination.path)
+        if options.format == .webp {
+            try WebPCodec.shared.encode(image, quality: options.quality).write(to: temporary, options: .atomic)
+        } else {
+            guard let output = CGImageDestinationCreateWithURL(temporary as CFURL, outputType.identifier as CFString, 1, nil) else {
+                throw ImageProcessingError.unsupportedOutput(destination.path)
+            }
+            var properties = (CGImageSourceCopyPropertiesAtIndex(sourceImage, 0, nil) as? [CFString: Any]) ?? [:]
+            properties[kCGImageDestinationLossyCompressionQuality] = min(max(options.quality, 0.01), 1.0)
+            properties[kCGImagePropertyOrientation] = 1
+            CGImageDestinationAddImage(output, image, properties as CFDictionary)
+            guard CGImageDestinationFinalize(output) else {
+                throw ImageProcessingError.encodingFailed(destination.path)
+            }
         }
 
         if source.standardizedFileURL == destination.standardizedFileURL {
@@ -183,7 +190,12 @@ enum ImageProcessingService {
         outputRoot: URL?,
         options: ImageProcessingOptions
     ) throws -> URL {
-        let relative = String(source.path.dropFirst(root.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let sourcePath = source.resolvingSymlinksInPath().standardizedFileURL.path
+        let rootPath = root.resolvingSymlinksInPath().standardizedFileURL.path
+        guard sourcePath.hasPrefix(rootPath + "/") else {
+            throw ImageProcessingError.unreadableImage(source.path)
+        }
+        let relative = String(sourcePath.dropFirst(rootPath.count + 1))
         let base: URL
         if let outputRoot {
             base = outputRoot.appendingPathComponent(relative)
