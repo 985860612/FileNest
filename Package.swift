@@ -14,7 +14,8 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("PDFKit"),
-                .linkedFramework("ImageIO")
+                .linkedFramework("ImageIO"),
+                .linkedFramework("Security")
             ]
         ),
         .testTarget(
