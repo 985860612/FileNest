@@ -1,11 +1,12 @@
 import SwiftUI
 
-@main
-struct SevenZipMacApp: App {
+public struct FileNestApplication: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = WorkspaceModel()
 
-    var body: some Scene {
+    public init() {}
+
+    public var body: some Scene {
         Window("文件台", id: "main") {
             ContentView(model: model)
         }

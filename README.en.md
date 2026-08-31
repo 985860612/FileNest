@@ -59,19 +59,45 @@ cd FileNest
 open "dist/文件台.app"
 ```
 
-The build downloads and verifies the official 7-Zip 26.02 and libwebp source archives, builds arm64 and x86_64 artifacts, then assembles a Universal 2 app and a portable `dist/cli/filenest-cli` distribution with ONNX Runtime.
+The build downloads and verifies the official 7-Zip 26.02 and libwebp source archives, builds arm64 and x86_64 artifacts, then assembles a Universal 2 app plus portable `dist/cli/filenest-cli` and `dist/mcp/filenest-mcp` distributions with their runtime libraries.
 
 ## CLI / MCP interface
 
-`filenest-cli` writes only the final JSON response to stdout. Model progress and errors are JSON on stderr, providing a stable boundary for an MCP server or other automation.
+`filenest-cli` writes only the final JSON response to stdout. Model progress and errors are JSON on stderr. `filenest-mcp` is a native stdio JSON-RPC server with no Python or `7z` subprocess dependency.
 
 ```bash
 dist/cli/filenest-cli version
+dist/cli/filenest-cli tools
+dist/cli/filenest-cli run hash_compute \
+  --arguments '{"files":["/tmp/example.zip"],"algorithm":"SHA-256"}'
 dist/cli/filenest-cli models status
 dist/cli/filenest-cli models download
 dist/cli/filenest-cli recognize --input ./documents --output ./results \
   --format markdown --jobs 2
 ```
+
+The MCP server exposes 22 tools spanning archives, hashes, XLSX catalogs and file operations, extension repair and regex copying, image processing, PDF conversion/merge/split/extraction/signatures, spreadsheet grouping, NCM recovery, and PP-StructureV3 models and recognition. Renaming, Trash operations, extension repair, name cleanup, and replacing original images require an explicit `confirm=true`.
+
+Claude Desktop configuration after installing the app:
+
+```json
+{
+  "mcpServers": {
+    "filenest": {
+      "command": "/Applications/文件台.app/Contents/MacOS/filenest-mcp"
+    }
+  }
+}
+```
+
+Codex `~/.codex/config.toml` configuration:
+
+```toml
+[mcp_servers.filenest]
+command = "/Applications/文件台.app/Contents/MacOS/filenest-mcp"
+```
+
+The command may instead point at the absolute path to `dist/mcp/filenest-mcp`; keep its sibling `Frameworks` directory with it. Call `tools/list` for complete self-describing input schemas.
 
 Formats are `json|markdown|html|docx|xlsx`, and `--input` may be repeated. Concurrency 2 is the balanced M-series default; concurrency 4 improves throughput with substantially higher peak memory. Server models use the verified CPU path because CoreML produced incomplete recognition output in validation.
 
@@ -87,7 +113,7 @@ SEVENZIP_ENGINE_INTEGRATION=1 swift test
 ./scripts/build-app.sh
 ```
 
-Architecture: `SwiftUI / AppKit / filenest-cli → FileNestOCRCore / ArchiveEngine → PaddleOCRCoreML / ONNX Runtime / 7-Zip SDK`.
+Architecture: `SwiftUI / AppKit / filenest-cli / filenest-mcp → FileNestKit / FileNestOCRCore → PaddleOCRCoreML / ONNX Runtime / 7-Zip SDK`.
 
 ## Privacy and security
 

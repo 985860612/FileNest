@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import SevenZipMac
+@testable import FileNestKit
 
 @Suite("Finder operations")
 struct FinderOperationTests {

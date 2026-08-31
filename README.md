@@ -59,19 +59,45 @@ cd FileNest
 open "dist/文件台.app"
 ```
 
-构建脚本下载官方 7-Zip 26.02 与 libwebp 源码包并校验 SHA-256，分别编译 arm64 与 x86_64 产物，再组装 Universal 2 应用、`dist/cli/filenest-cli` 和 ONNX Runtime，并临时签名。第三方源码与中间产物只保存在 `.build/`。
+构建脚本下载官方 7-Zip 26.02 与 libwebp 源码包并校验 SHA-256，分别编译 arm64 与 x86_64 产物，再组装 Universal 2 应用、`dist/cli/filenest-cli`、`dist/mcp/filenest-mcp` 和各自运行库，并临时签名。第三方源码与中间产物只保存在 `.build/`。
 
 ## CLI / MCP 接口
 
-`filenest-cli` 的 stdout 只写最终 JSON，模型下载进度与错误以 JSON 写入 stderr，便于 MCP server 或其他自动化工具稳定调用。
+`filenest-cli` 的 stdout 只写最终 JSON，模型下载进度与错误以 JSON 写入 stderr。`filenest-mcp` 是原生 stdio JSON-RPC server，不依赖 Python，也不会启动 `7z` 子进程。
 
 ```bash
 dist/cli/filenest-cli version
+dist/cli/filenest-cli tools
+dist/cli/filenest-cli run hash_compute \
+  --arguments '{"files":["/tmp/example.zip"],"algorithm":"SHA-256"}'
 dist/cli/filenest-cli models status
 dist/cli/filenest-cli models download
 dist/cli/filenest-cli recognize --input ./documents --output ./results \
   --format markdown --jobs 2
 ```
+
+MCP 共暴露 22 个工具，覆盖归档创建/列表/解压、Hash、XLSX 目录与批量文件操作、扩展名修复/正则复制/名称清理、图片处理、PDF 转换/合并/拆分/正则提取/签名、Excel 分组合并、NCM 转换以及 PP-StructureV3 模型与识别。重命名、移到废纸篓、扩展名修复、名称清理和替换原图必须显式传入 `confirm=true`。
+
+安装应用后，Claude Desktop 可使用以下配置：
+
+```json
+{
+  "mcpServers": {
+    "filenest": {
+      "command": "/Applications/文件台.app/Contents/MacOS/filenest-mcp"
+    }
+  }
+}
+```
+
+Codex 的 `~/.codex/config.toml` 配置：
+
+```toml
+[mcp_servers.filenest]
+command = "/Applications/文件台.app/Contents/MacOS/filenest-mcp"
+```
+
+也可把命令替换为发行包中 `dist/mcp/filenest-mcp` 的绝对路径；必须连同同目录的 `Frameworks` 一起移动。工具参数通过 MCP 的 `inputSchema` 自描述，可先调用 `tools/list` 查看完整清单。
 
 支持 `json|markdown|html|docx|xlsx`；可重复传入 `--input`。`--jobs 2` 是 M 系列 Mac 的推荐平衡配置，`--jobs 4` 吞吐更高但峰值内存明显增加。当前 server 模型固定走实测结果一致的 CPU 路径；CoreML 虽可能更快，但已发现识别结果缺失，故不作为可选项。
 
@@ -87,7 +113,7 @@ SEVENZIP_ENGINE_INTEGRATION=1 swift test
 ./scripts/build-app.sh
 ```
 
-架构：`SwiftUI / AppKit / filenest-cli → FileNestOCRCore / ArchiveEngine → PaddleOCRCoreML / ONNX Runtime / 7-Zip SDK`。
+架构：`SwiftUI / AppKit / filenest-cli / filenest-mcp → FileNestKit / FileNestOCRCore → PaddleOCRCoreML / ONNX Runtime / 7-Zip SDK`。
 
 ## 隐私与安全
 

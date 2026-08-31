@@ -18,12 +18,19 @@ let package = Package(
     products: [
         .executable(name: "SevenZipMac", targets: ["SevenZipMac"]),
         .executable(name: "filenest-cli", targets: ["FileNestCLI"]),
+        .executable(name: "filenest-mcp", targets: ["FileNestMCP"]),
+        .library(name: "FileNestKit", targets: ["FileNestKit"]),
         .library(name: "FileNestOCRCore", targets: ["FileNestOCRCore"])
     ],
     dependencies: [paddleOCRDependency],
     targets: [
         .executableTarget(
             name: "SevenZipMac",
+            dependencies: ["FileNestKit"],
+            path: "Sources/FileNestApp"
+        ),
+        .target(
+            name: "FileNestKit",
             dependencies: [
                 "FileNestOCRCore",
             ],
@@ -45,14 +52,20 @@ let package = Package(
         .executableTarget(
             name: "FileNestCLI",
             dependencies: [
+                "FileNestKit",
                 "FileNestOCRCore",
                 .product(name: "PaddleOCRCoreML", package: "PaddleOCRCoreML")
             ],
             path: "Sources/FileNestCLI"
         ),
+        .executableTarget(
+            name: "FileNestMCP",
+            dependencies: ["FileNestKit", "FileNestOCRCore"],
+            path: "Sources/FileNestMCP"
+        ),
         .testTarget(
             name: "SevenZipMacTests",
-            dependencies: ["SevenZipMac", "FileNestOCRCore"],
+            dependencies: ["FileNestKit", "FileNestOCRCore"],
             path: "Tests/SevenZipMacTests"
         )
     ]

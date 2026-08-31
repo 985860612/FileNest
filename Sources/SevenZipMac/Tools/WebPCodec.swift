@@ -120,6 +120,12 @@ final class WebPCodec: @unchecked Sendable {
             candidates.append(frameworks.appendingPathComponent("libwebp.dylib"))
         }
         candidates.append(
+            URL(fileURLWithPath: CommandLine.arguments[0])
+                .standardizedFileURL
+                .deletingLastPathComponent()
+                .appendingPathComponent("Frameworks/libwebp.dylib")
+        )
+        candidates.append(
             URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent(".build/webp/libwebp.dylib")
         )

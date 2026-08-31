@@ -21,5 +21,7 @@ jobs:
         run: SEVENZIP_ENGINE_INTEGRATION=1 swift test
       - name: Verify CLI JSON contract
         run: ./scripts/cli-smoke.sh .build/debug/filenest-cli
+      - name: Verify MCP JSON-RPC contract
+        run: ./scripts/mcp-smoke.sh .build/debug/filenest-mcp
       - name: Run archive engine smoke tests
         run: ./scripts/engine-smoke.sh
