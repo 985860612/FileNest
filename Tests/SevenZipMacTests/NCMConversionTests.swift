@@ -2,7 +2,7 @@ import CommonCrypto
 import AVFoundation
 import Foundation
 import Testing
-@testable import SevenZipMac
+@testable import FileNestKit
 
 @Suite("NCM conversion")
 struct NCMConversionTests {

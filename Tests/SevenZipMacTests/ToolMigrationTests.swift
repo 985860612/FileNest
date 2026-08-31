@@ -4,7 +4,7 @@ import ImageIO
 import PDFKit
 import Testing
 import UniformTypeIdentifiers
-@testable import SevenZipMac
+@testable import FileNestKit
 
 @Suite("Migrated file, image, PDF and spreadsheet tools")
 struct ToolMigrationTests {

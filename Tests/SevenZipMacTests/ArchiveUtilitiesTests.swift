@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import SevenZipMac
+@testable import FileNestKit
 
 @Test func detectsReadableArchives() {
     #expect(ArchiveUtilities.looksLikeArchive(URL(fileURLWithPath: "/tmp/demo.7z")))

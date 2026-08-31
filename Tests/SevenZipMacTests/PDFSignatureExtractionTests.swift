@@ -1,7 +1,7 @@
 import Foundation
 import CoreGraphics
 import Testing
-@testable import SevenZipMac
+@testable import FileNestKit
 
 @Suite("PDF signature information extraction")
 struct PDFSignatureExtractionTests {

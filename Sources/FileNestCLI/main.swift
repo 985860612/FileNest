@@ -1,4 +1,5 @@
 import Darwin
+import FileNestKit
 import FileNestOCRCore
 import Foundation
 import PaddleOCRCoreML
@@ -20,7 +21,7 @@ private struct Arguments {
 
     init(_ arguments: [String]) throws {
         var index = 0
-        let valueOptions: Set<String> = ["input", "output", "format", "jobs", "model-dir"]
+        let valueOptions: Set<String> = ["input", "output", "format", "jobs", "model-dir", "arguments"]
         while index < arguments.count {
             let argument = arguments[index]
             if argument.hasPrefix("--") {
@@ -69,6 +70,16 @@ private struct FileNestCLI {
             try await models(arguments, service: service, root: modelRoot)
         case "recognize":
             try await recognize(arguments, service: service)
+        case "tools":
+            writeJSON(["ok": true, "tools": FileNestAutomation.toolNames])
+        case "run":
+            guard let tool = arguments.positionals.first else { throw CLIError.usage("run 需要工具名称") }
+            let json = arguments.value("arguments") ?? "{}"
+            guard let data = json.data(using: .utf8),
+                  let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw CLIError.usage("--arguments 必须是 JSON object")
+            }
+            writeJSON(["ok": true, "result": try FileNestAutomation.call(tool, arguments: object)])
         case "version":
             writeJSON(["ok": true, "sdkVersion": DocumentRecognitionService.sdkVersion])
         default:
@@ -214,9 +225,11 @@ private struct FileNestCLI {
     }
 
     private static let usage = """
-    FileNest 原生文档识别 CLI（无 Python）
+    FileNest 全功能原生 CLI（无 Python、无 7z 子进程）
 
       filenest-cli version
+      filenest-cli tools
+      filenest-cli run TOOL --arguments '{"key":"value"}'
       filenest-cli models status [--model-dir DIR]
       filenest-cli models download [--model-dir DIR]
       filenest-cli recognize --input FILE_OR_DIR [--input FILE] --output DIR

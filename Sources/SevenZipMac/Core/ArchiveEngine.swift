@@ -220,6 +220,13 @@ final class ArchiveEngine: @unchecked Sendable {
            FileManager.default.fileExists(atPath: frameworks.appendingPathComponent("7z.so").path) {
             return frameworks
         }
+        let executableFrameworks = URL(fileURLWithPath: CommandLine.arguments[0])
+            .standardizedFileURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("Frameworks", isDirectory: true)
+        if FileManager.default.fileExists(atPath: executableFrameworks.appendingPathComponent("7z.so").path) {
+            return executableFrameworks
+        }
         return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent(".build/engine", isDirectory: true)
     }

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import SevenZipMac
+@testable import FileNestKit
 
 @Suite("File management")
 struct FileManagementTests {

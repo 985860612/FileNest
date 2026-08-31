@@ -23,4 +23,18 @@ case "$STATUS" in
   *) echo "Unexpected model status response: $STATUS" >&2; exit 1 ;;
 esac
 
+TOOLS=$($CLI tools)
+case "$TOOLS" in
+  *'"archive_create"'*'"image_process"'*'"pdf_signatures"'*) ;;
+  *) echo "Unexpected tool inventory: $TOOLS" >&2; exit 1 ;;
+esac
+
+HASH_FILE="$MODEL_DIR/hash.txt"
+printf 'hello' > "$HASH_FILE"
+HASH=$($CLI run hash_compute --arguments "{\"files\":[\"$HASH_FILE\"],\"algorithm\":\"SHA-256\"}")
+case "$HASH" in
+  *'2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'*) ;;
+  *) echo "Unexpected hash response: $HASH" >&2; exit 1 ;;
+esac
+
 echo "FileNest CLI JSON contract passed"
