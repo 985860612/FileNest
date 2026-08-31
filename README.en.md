@@ -26,6 +26,7 @@ A native file workspace for macOS with archive creation, extraction and browsing
 - Batch-compress and proportionally resize images, with JPEG, PNG, HEIC, and WebP conversion
 - Convert images to PDF, merge sorted PDF/image folders, and split text PDFs by keyword
 - Extract PDF text matches to XLSX and group, de-duplicate, and merge spreadsheet rows by a selected column
+- Use the dedicated OCR entry to load only the two PP-OCRv5 detection/recognition models, skipping layout, reading order, tables, formulae, and charts
 - Batch-recognize images and PDFs with native PP-StructureV3: PP-OCRv5, layout, reading order, orientation/unwarping, and wired/wireless tables; export JSON, Markdown, HTML, DOCX, or XLSX
 - Reuse model sessions across a batch (default concurrency 2) and report total time, throughput, P50, and P95
 - Include directories, parent folders, detected types, byte counts, and timestamps in catalog exports
@@ -72,6 +73,9 @@ dist/cli/filenest-cli run hash_compute \
   --arguments '{"files":["/tmp/example.zip"],"algorithm":"SHA-256"}'
 dist/cli/filenest-cli models status
 dist/cli/filenest-cli models download
+dist/cli/filenest-cli models download --ocr-only
+dist/cli/filenest-cli recognize --ocr-only --input ./scans --output ./ocr-results \
+  --format markdown
 dist/cli/filenest-cli recognize --input ./documents --output ./results \
   --format markdown --jobs 2
 ```
@@ -99,7 +103,7 @@ command = "/Applications/文件台.app/Contents/MacOS/filenest-mcp"
 
 The command may instead point at the absolute path to `dist/mcp/filenest-mcp`; keep its sibling `Frameworks` directory with it. Call `tools/list` for complete self-describing input schemas.
 
-Formats are `json|markdown|html|docx|xlsx`, and `--input` may be repeated. Concurrency 2 is the balanced M-series default; concurrency 4 improves throughput with substantially higher peak memory. Server models use the verified CPU path because CoreML produced incomplete recognition output in validation.
+Formats are `json|markdown|html|docx|xlsx`, and `--input` may be repeated. Pass `--ocr-only` to run only PP-OCRv5 text detection and recognition; the same flag on `models download` downloads only the two OCR models. For MCP, pass `mode="ocr"`. Concurrency 2 is the balanced M-series default for full structure recognition; concurrency 4 improves throughput with substantially higher peak memory. Server models use the verified CPU path because CoreML produced incomplete recognition output in validation.
 
 The 11 checksum-pinned catalog models cover OCR, layout, reading order, orientation/unwarping, and wired/wireless tables. Separately licensed formula/chart generation files can be placed under `Formula/{encoder.onnx,decoder.onnx,tokenizer.json}` and `Chart/{encoder.onnx,decoder.onnx,prompt_ids.txt,tokenizer.json}` in the model directory. They are loaded lazily; pass `--charts` to enable chart generation.
 

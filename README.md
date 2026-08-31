@@ -26,6 +26,7 @@
 - 批量压缩、等比例缩放图片并转换为 JPEG、PNG、HEIC 或 WebP
 - 图片转 PDF；按自定义关键字排序合并 PDF/图片；按关键字拆分文字型 PDF
 - 用正则批量提取 PDF 文本到 XLSX，并按指定 Excel 列分组、去重、合并
+- 独立“文字识别（OCR）”入口只加载 PP-OCRv5 检测与识别两个模型，跳过版面、阅读顺序、表格、公式和图表分析
 - 原生 PP-StructureV3 批量识别图片/PDF：PP-OCRv5、版面、阅读顺序、方向/矫正及有线/无线表格；导出 JSON、Markdown、HTML、DOCX、XLSX
 - 共享模型会话与批量并发（默认 2）；界面显示总耗时、吞吐、P50/P95，模型下载后逐文件处理可离线完成
 - 目录清单可包含目录、父目录、实际文件类型、字节数、创建时间和修改时间
@@ -72,6 +73,9 @@ dist/cli/filenest-cli run hash_compute \
   --arguments '{"files":["/tmp/example.zip"],"algorithm":"SHA-256"}'
 dist/cli/filenest-cli models status
 dist/cli/filenest-cli models download
+dist/cli/filenest-cli models download --ocr-only
+dist/cli/filenest-cli recognize --ocr-only --input ./scans --output ./ocr-results \
+  --format markdown
 dist/cli/filenest-cli recognize --input ./documents --output ./results \
   --format markdown --jobs 2
 ```
@@ -99,7 +103,7 @@ command = "/Applications/文件台.app/Contents/MacOS/filenest-mcp"
 
 也可把命令替换为发行包中 `dist/mcp/filenest-mcp` 的绝对路径；必须连同同目录的 `Frameworks` 一起移动。工具参数通过 MCP 的 `inputSchema` 自描述，可先调用 `tools/list` 查看完整清单。
 
-支持 `json|markdown|html|docx|xlsx`；可重复传入 `--input`。`--jobs 2` 是 M 系列 Mac 的推荐平衡配置，`--jobs 4` 吞吐更高但峰值内存明显增加。当前 server 模型固定走实测结果一致的 CPU 路径；CoreML 虽可能更快，但已发现识别结果缺失，故不作为可选项。
+支持 `json|markdown|html|docx|xlsx`；可重复传入 `--input`。`--ocr-only` 仅运行 PP-OCRv5 检测与文字识别，模型下载也可使用同一参数只下载 2 个 OCR 模型。MCP 对应传 `mode="ocr"`。完整结构识别中，`--jobs 2` 是 M 系列 Mac 的推荐平衡配置，`--jobs 4` 吞吐更高但峰值内存明显增加。当前 server 模型固定走实测结果一致的 CPU 路径；CoreML 虽可能更快，但已发现识别结果缺失，故不作为可选项。
 
 自动下载的 11 个校验模型覆盖 OCR、版面、阅读顺序、方向/矫正和有线/无线表格。公式与图表生成模型按上游许可单独提供时，可放到模型目录的 `Formula/{encoder.onnx,decoder.onnx,tokenizer.json}` 与 `Chart/{encoder.onnx,decoder.onnx,prompt_ids.txt,tokenizer.json}`；SDK 会惰性加载，CLI 用 `--charts` 开启图表生成。
 

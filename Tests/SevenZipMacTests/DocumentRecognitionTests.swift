@@ -2,18 +2,39 @@ import FileNestOCRCore
 import Foundation
 import PaddleOCRCoreML
 import Testing
+@testable import FileNestKit
 
 @Suite("Native document recognition integration")
 struct DocumentRecognitionTests {
     @Test("SDK, model catalog and supported inputs are wired")
     func sdkAndCatalog() {
-        #expect(DocumentRecognitionService.sdkVersion == "0.3.0")
+        #expect(DocumentRecognitionService.sdkVersion == "0.3.1")
         #expect(DocumentRecognitionService.modelComponents.count == 11)
+        #expect(DocumentRecognitionService.modelComponents(for: .ocr).count == 2)
+        #expect(DocumentRecognitionService.modelComponents(for: .ocr).map(\.artifact.name) == [
+            PaddleOCRModelCatalog.ocrV5ServerDetection.name,
+            PaddleOCRModelCatalog.ocrV5ServerRecognition.name,
+        ])
         #expect(Set(DocumentRecognitionService.modelComponents.map(\.artifact.name)).count == 11)
         #expect(DocumentRecognitionService.modelComponents.allSatisfy { $0.artifact.modelSHA256.count == 64 })
         #expect(DocumentRecognitionService.accepts(URL(fileURLWithPath: "/tmp/a.PDF")))
         #expect(DocumentRecognitionService.accepts(URL(fileURLWithPath: "/tmp/a.webp")))
         #expect(!DocumentRecognitionService.accepts(URL(fileURLWithPath: "/tmp/a.txt")))
+    }
+
+    @Test("OCR-only entry and configuration disable structure analysis")
+    @MainActor
+    func ocrOnlyMode() {
+        let configuration = DocumentRecognitionConfiguration(mode: .ocr, maxConcurrentDocuments: 4)
+        #expect(configuration.mode == .ocr)
+        #expect(AppDestination.textRecognition.title == "文字识别 OCR")
+        #expect(AppDestination.textRecognition.subtitle.contains("PP-OCRv5"))
+
+        let model = DocumentRecognitionWorkspaceModel(mode: .ocr)
+        #expect(model.mode == .ocr)
+        #expect(model.maxConcurrentDocuments == 1)
+        #expect(!model.classifyOrientation)
+        #expect(!model.recognizeTables)
     }
 
     @Test("Batch concurrency is clamped to the measured safe range")
@@ -29,6 +50,7 @@ struct DocumentRecognitionTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let service = DocumentRecognitionService(modelRoot: root)
         #expect(await !service.modelsReady())
+        #expect(await !service.modelsReady(mode: .ocr))
     }
 
     @Test("Every structured export format writes a usable file")
@@ -55,28 +77,24 @@ struct DocumentRecognitionTests {
     }
 
     private func fixtureDocument() throws -> StructureDocumentResult {
-        let object: [String: Any] = [
-            "source": "file:///tmp/source.png",
-            "pages": [[
-                "pageIndex": 0,
-                "width": 1000,
-                "height": 800,
-                "orientationDegrees": 0,
-                "blocks": [[
-                    "type": "title",
-                    "label": "doc_title",
-                    "bounds": ["x1": 10, "y1": 10, "x2": 900, "y2": 100],
-                    "confidence": 0.98,
-                    "content": "示例标题",
-                    "readingOrder": 0,
-                    "ocrLines": [],
-                ]],
-                "overallOCR": ["lines": []],
-            ]],
-        ]
-        return try JSONDecoder().decode(
-            StructureDocumentResult.self,
-            from: JSONSerialization.data(withJSONObject: object)
+        StructureDocumentResult(
+            source: URL(fileURLWithPath: "/tmp/source.png"),
+            pages: [StructurePageResult(
+                pageIndex: 0,
+                width: 1000,
+                height: 800,
+                orientationDegrees: 0,
+                blocks: [StructureBlock(
+                    type: .title,
+                    label: "doc_title",
+                    bounds: Bounds(x1: 10, y1: 10, x2: 900, y2: 100),
+                    confidence: 0.98,
+                    content: "示例标题",
+                    readingOrder: 0,
+                    ocrLines: []
+                )],
+                overallOCR: OCRResult(lines: [])
+            )]
         )
     }
 }

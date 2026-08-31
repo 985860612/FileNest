@@ -95,16 +95,19 @@ private struct FileNestCLI {
         let action = arguments.positionals.first ?? "status"
         switch action {
         case "status":
-            let ready = await service.modelsReady()
+            let mode: DocumentRecognitionMode = arguments.flags.contains("ocr-only") ? .ocr : .structure
+            let ready = await service.modelsReady(mode: mode)
             writeJSON([
                 "ok": true,
                 "ready": ready,
-                "modelCount": DocumentRecognitionService.modelComponents.count,
+                "mode": mode.rawValue,
+                "modelCount": DocumentRecognitionService.modelComponents(for: mode).count,
                 "modelDirectory": root.path,
                 "sdkVersion": DocumentRecognitionService.sdkVersion,
             ])
         case "download":
-            try await service.downloadModels { progress in
+            let mode: DocumentRecognitionMode = arguments.flags.contains("ocr-only") ? .ocr : .structure
+            try await service.downloadModels(mode: mode) { progress in
                 writeJSON([
                     "event": "model-progress",
                     "completed": progress.completed,
@@ -136,6 +139,7 @@ private struct FileNestCLI {
         let output = fileURL(outputValue)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let configuration = DocumentRecognitionConfiguration(
+            mode: arguments.flags.contains("ocr-only") ? .ocr : .structure,
             maxConcurrentDocuments: jobs,
             classifyOrientation: !arguments.flags.contains("no-orientation"),
             unwarpDocument: arguments.flags.contains("unwarp"),
@@ -235,6 +239,7 @@ private struct FileNestCLI {
       filenest-cli recognize --input FILE_OR_DIR [--input FILE] --output DIR
           [--format json|markdown|html|docx|xlsx] [--jobs 1...4]
           [--unwarp] [--charts] [--no-orientation] [--no-tables] [--no-formula]
+          [--ocr-only]  # 只运行 PP-OCRv5 两模型
 
     stdout 只输出最终 JSON；下载进度与错误 JSON 输出到 stderr，适合 MCP/自动化调用。
     """

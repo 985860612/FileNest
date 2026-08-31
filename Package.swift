@@ -8,7 +8,7 @@ if let localPath = ProcessInfo.processInfo.environment["PADDLEOCR_COREML_LOCAL_P
 } else {
     paddleOCRDependency = .package(
         url: "https://github.com/985860612/PaddleOCRCoreML.git",
-        exact: "0.3.0"
+        exact: "0.3.1"
     )
 }
 
