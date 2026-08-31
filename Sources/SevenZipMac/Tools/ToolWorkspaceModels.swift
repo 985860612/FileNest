@@ -142,13 +142,14 @@ enum PDFToolMode: String, CaseIterable, Identifiable {
     case merge = "排序合并"
     case split = "关键字拆分"
     case regex = "正则提取"
+    case signatureReport = "签名验证"
     var id: String { rawValue }
 }
 
 @MainActor
 final class PDFToolsWorkspaceModel: ObservableObject {
     @Published var mode: PDFToolMode = .imagesToPDF {
-        didSet { results = []; mergePreview = []; extractedRows = [] }
+        didSet { results = []; mergePreview = []; extractedRows = []; signatures = [] }
     }
     @Published var rootURL: URL?
     @Published var outputURL: URL?
@@ -159,6 +160,8 @@ final class PDFToolsWorkspaceModel: ObservableObject {
     @Published var results: [PDFBatchResult] = []
     @Published var mergePreview: [PDFMergePreviewEntry] = []
     @Published var extractedRows: [PDFExtractionRow] = []
+    @Published var signatureSourceURL: URL?
+    @Published var signatures: [PDFSignatureInfo] = []
     @Published var isWorking = false
     @Published var statusMessage = "选择目录和处理方式"
     @Published var errorMessage: String?
@@ -169,6 +172,18 @@ final class PDFToolsWorkspaceModel: ObservableObject {
     func chooseRoot() { rootURL = chooseDirectory(prompt: "选择来源目录") }
     func chooseOutput() { outputURL = chooseDirectory(prompt: "选择输出目录") }
 
+    func chooseSignaturePDF() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = "选择需要验证电子签名的 PDF"
+        guard panel.runModal() == .OK else { return }
+        signatureSourceURL = panel.url
+        signatures = []
+        statusMessage = "已选择 PDF，可生成带标准数字签名的验证报告"
+    }
+
     func previewMerge() {
         guard let rootURL else { errorMessage = "请选择来源目录。"; return }
         do {
@@ -178,6 +193,7 @@ final class PDFToolsWorkspaceModel: ObservableObject {
     }
 
     func run() {
+        if mode == .signatureReport { exportSignatureReport(); return }
         guard let rootURL else { errorMessage = "请选择来源目录。"; return }
         if mode == .regex { runRegexExport(rootURL: rootURL); return }
         if mode == .split, keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -214,6 +230,7 @@ final class PDFToolsWorkspaceModel: ObservableObject {
                         }
                     }
                 case .regex: results = []
+                case .signatureReport: results = []
                 }
                 DispatchQueue.main.async {
                     self?.results = results
@@ -222,6 +239,52 @@ final class PDFToolsWorkspaceModel: ObservableObject {
                 }
             } catch { DispatchQueue.main.async { self?.isWorking = false; self?.errorMessage = error.localizedDescription } }
         }
+    }
+
+    func exportSignatureReport() {
+        guard let source = signatureSourceURL else { errorMessage = "请选择需要验证的 PDF。"; return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.nameFieldStringValue = "\(source.deletingPathExtension().lastPathComponent)-电子签名验证报告-已签名.pdf"
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        isWorking = true
+        errorMessage = nil
+        statusMessage = "正在提取签名并生成已签名 PDF 报告…"
+        Task { [weak self] in
+            do {
+                let extracted = try PDFSignatureService.extractSignatures(from: source)
+                let html = try PDFSignatureReportRenderer.render(fileURL: source, signatures: extracted)
+                try await PDFSignatureReportExporter.exportHTML(html, to: destination)
+                self?.signatures = extracted
+                self?.isWorking = false
+                self?.statusMessage = "已生成标准 PDF 数字签名：\(destination.lastPathComponent)"
+                NSWorkspace.shared.activateFileViewerSelecting([destination])
+            } catch {
+                self?.isWorking = false
+                self?.errorMessage = error.localizedDescription
+                self?.statusMessage = "签名验证报告生成失败"
+            }
+        }
+    }
+
+    func verifySelfSignedReport() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = "选择带 FileNest 数字签名的 PDF 报告"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let data = try Data(contentsOf: url, options: .mappedIfSafe)
+            let trustedKey = try PDFReportSigningIdentityStore.trustedPublicKey()
+            let verification = PDFReportSelfSignature.verify(data, trustedPublicKey: trustedKey)
+            statusMessage = switch verification.status {
+            case .validTrusted: "数字签名有效，签名后未被修改（本机签名身份）"
+            case .validSelfSigned: "数字签名有效，签名后未被修改；证书为其他设备的自签证书"
+            case .modified: "警告：数字签名无效，文件可能已被修改"
+            case .unsigned: "该 PDF 不包含 FileNest 标准数字签名"
+            }
+        } catch { errorMessage = error.localizedDescription }
     }
 
     private func runRegexExport(rootURL: URL) {
