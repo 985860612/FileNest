@@ -39,7 +39,8 @@ let package = Package(
                 .linkedFramework("AppKit"),
                 .linkedFramework("PDFKit"),
                 .linkedFramework("ImageIO"),
-                .linkedFramework("Security")
+                .linkedFramework("Security"),
+                .linkedFramework("WebKit")
             ]
         ),
         .target(

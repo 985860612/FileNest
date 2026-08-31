@@ -89,12 +89,19 @@ struct PDFToolsView: View {
     @ObservedObject var model: PDFToolsWorkspaceModel
 
     var body: some View {
-        ToolPage(title: "PDF 工具", subtitle: "图片转换、目录合并、关键字拆分与正则提取", icon: "doc.richtext", status: model.statusMessage) {
+        ToolPage(title: "PDF 工具", subtitle: "转换、合并、拆分、提取与电子签名验证", icon: "doc.richtext", status: model.statusMessage) {
             Picker("处理方式", selection: $model.mode) {
                 ForEach(PDFToolMode.allCases) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.segmented)
-            ToolDirectoryRow(label: "来源目录", url: model.rootURL, action: model.chooseRoot)
-            if model.mode != .regex {
+            if model.mode == .signatureReport {
+                HStack {
+                    ToolPathBox(label: "待验证 PDF", url: model.signatureSourceURL)
+                    Button("选择 PDF…", action: model.chooseSignaturePDF).disabled(model.isWorking)
+                }
+            } else {
+                ToolDirectoryRow(label: "来源目录", url: model.rootURL, action: model.chooseRoot)
+            }
+            if model.mode != .regex, model.mode != .signatureReport {
                 ToolDirectoryRow(label: "输出目录（可选）", url: model.outputURL, action: model.chooseOutput)
             }
             switch model.mode {
@@ -115,21 +122,35 @@ struct PDFToolsView: View {
                     TextField("正则表达式；有捕获组时导出第一个捕获组", text: $model.regexPattern)
                     Toggle("包含子目录", isOn: $model.recursively).toggleStyle(.checkbox)
                 }
+            case .signatureReport:
+                Text("提取原 PDF 的签名、证书和可视签章，生成验证报告，并使用钥匙串中的 P-256 私钥与自签 X.509 证书写入标准 PDF/CMS 数字签名。兼容阅读器可校验报告是否被修改；自签证书默认不受信任。")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             HStack {
-                Text("仅文字型 PDF 可用于关键字拆分和正则提取。")
+                Text(model.mode == .signatureReport ? "报告签名后如有任何字节变化，FileNest 校验将提示异常。" : "仅文字型 PDF 可用于关键字拆分和正则提取。")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if model.mode == .merge {
                     Button("排序预览", action: model.previewMerge)
                         .disabled(model.rootURL == nil || model.isWorking)
                 }
-                Button(model.mode == .regex ? "提取并导出 XLSX…" : "开始处理", action: model.run)
+                if model.mode == .signatureReport {
+                    Button("验证数字签名…", action: model.verifySelfSignedReport)
+                        .disabled(model.isWorking)
+                }
+                Button(model.mode == .regex ? "提取并导出 XLSX…" : model.mode == .signatureReport ? "生成已签名 PDF 报告…" : "开始处理", action: model.run)
                     .buttonStyle(.borderedProminent)
-                    .disabled(model.rootURL == nil || model.isWorking)
+                    .disabled((model.mode == .signatureReport ? model.signatureSourceURL == nil : model.rootURL == nil) || model.isWorking)
             }
         } content: {
-            if model.mode == .regex {
+            if model.mode == .signatureReport {
+                Table(model.signatures) {
+                    TableColumn("序号") { Text("\($0.index)").monospacedDigit() }.width(52)
+                    TableColumn("签署人") { Text($0.signerCommonName).lineLimit(1) }
+                    TableColumn("签名类型") { Text($0.subFilter).lineLimit(1) }
+                    TableColumn("内容") { Text($0.protectedContentDigestMatches ? "未被修改" : "需核查") }.width(90)
+                }
+            } else if model.mode == .regex {
                 Table(model.extractedRows) {
                     TableColumn("文件") { Text($0.fileName).lineLimit(1) }
                     TableColumn("提取内容") { Text($0.value).lineLimit(1) }

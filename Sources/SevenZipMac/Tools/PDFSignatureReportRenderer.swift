@@ -78,7 +78,7 @@ enum PDFSignatureReportRenderer {
           </section>
 
           <footer>
-            本报告由 FileNest 在本机离线生成。绿色表示 PDF ByteRange 内容的计算摘要与 CMS/CAdES 签名属性 messageDigest 一致；这不是对 CMS 签名值的完整密码学验证，也不等同于对签署人身份、可信时间戳或证书法律效力的司法认定。系统证书信任验证不联网，不执行在线 OCSP/CRL 查询。
+            本报告由 FileNest 在本机离线生成。导出为 PDF 时，系统使用保存在 macOS 钥匙串中的 P-256 私钥和自签 X.509 证书，写入标准 PDF/CMS 数字签名。Adobe Acrobat 等兼容阅读器可校验报告在签名后是否被修改；由于证书为自签证书，签署人身份默认不受系统信任。该签名不等同于第三方 CA 认证、可信时间戳或 PAdES 长期验证签名。原文件的证书信任验证不联网，不执行在线 OCSP/CRL 查询。
           </footer>
         </main>
         </body>
