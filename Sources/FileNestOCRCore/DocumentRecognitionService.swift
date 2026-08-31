@@ -9,11 +9,47 @@ public enum DocumentRecognitionMode: String, Sendable {
     case ocr
 }
 
+public enum DocumentRecognitionProvider: String, CaseIterable, Identifiable, Sendable {
+    case coreML = "coreml"
+    case cpu
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .coreML: "CoreML 快速"
+        case .cpu: "CPU 精确"
+        }
+    }
+
+    fileprivate var sdkProvider: PaddleOCRExecutionProvider {
+        switch self {
+        case .coreML: .coreML
+        case .cpu: .cpu
+        }
+    }
+}
+
+public enum DocumentRecognitionModelSize: String, CaseIterable, Identifiable, Sendable {
+    case mobile
+    case server
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .mobile: "小模型（Mobile）"
+        case .server: "大模型（Server）"
+        }
+    }
+}
+
 public enum DocumentRecognitionError: LocalizedError {
     case modelsMissing
     case noDocuments
     case unsupportedInput(String)
     case resultMissing
+    case unsupportedOCRCombination
 
     public var errorDescription: String? {
         switch self {
@@ -21,6 +57,7 @@ public enum DocumentRecognitionError: LocalizedError {
         case .noDocuments: "请先选择图片或 PDF。"
         case .unsupportedInput(let name): "不支持的文档格式：\(name)"
         case .resultMissing: "没有可导出的识别结果。"
+        case .unsupportedOCRCombination: "PP-OCRv5 Mobile 与 CoreML 的结果校验未通过；小模型请使用 CPU 精确模式。"
         }
     }
 }
@@ -49,6 +86,8 @@ public struct RecognitionModelProgress: Sendable {
 
 public struct DocumentRecognitionConfiguration: Sendable {
     public var mode: DocumentRecognitionMode = .structure
+    public var ocrProvider: DocumentRecognitionProvider = .coreML
+    public var ocrModelSize: DocumentRecognitionModelSize = .server
     public var maxConcurrentDocuments = 2
     public var classifyOrientation = true
     public var unwarpDocument = false
@@ -58,6 +97,8 @@ public struct DocumentRecognitionConfiguration: Sendable {
 
     public init(
         mode: DocumentRecognitionMode = .structure,
+        ocrProvider: DocumentRecognitionProvider = .coreML,
+        ocrModelSize: DocumentRecognitionModelSize = .server,
         maxConcurrentDocuments: Int = 2,
         classifyOrientation: Bool = true,
         unwarpDocument: Bool = false,
@@ -66,6 +107,8 @@ public struct DocumentRecognitionConfiguration: Sendable {
         recognizeCharts: Bool = false
     ) {
         self.mode = mode
+        self.ocrProvider = ocrProvider
+        self.ocrModelSize = ocrModelSize
         self.maxConcurrentDocuments = maxConcurrentDocuments
         self.classifyOrientation = classifyOrientation
         self.unwarpDocument = unwarpDocument
@@ -105,11 +148,33 @@ public actor DocumentRecognitionService {
         .init(title: "SLANet 无线表格", artifact: PaddleOCRModelCatalog.wirelessTableStructure),
         .init(title: "RT-DETR 无线单元格", artifact: PaddleOCRModelCatalog.wirelessTableCells),
     ]
+    private static let mobileDetectionArtifact = modelArtifact(
+        name: "PP-OCRv5_mobile_det_onnx",
+        revision: "e6f4fa85f00e168c862bc462aebca69eef9b3d3d",
+        modelSHA256: "a431985659dc921974177a95adcfbb90fd9e51989a5e04d70d0b75f597b6e61d",
+        configurationSHA256: "98069072e1b6b37d727fd9d9f11725faa46d6ea0de012f2ed26caea011c37699"
+    )
+    private static let mobileRecognitionArtifact = modelArtifact(
+        name: "PP-OCRv5_mobile_rec_onnx",
+        revision: "ed152b8b495f84de93cda5709d768548a9127622",
+        modelSHA256: "da72dc72ca4dc220df0dfde68c1dedc31c58d3e76a25871122e5056227d50092",
+        configurationSHA256: "5dfeb2777f6d0db8177d8128a8acfcf6e6276dc4ac73ea3bf0dc06d6a5e85d8e"
+    )
+
+    private struct OCRSessionKey: Hashable {
+        let provider: DocumentRecognitionProvider
+        let modelSize: DocumentRecognitionModelSize
+    }
+
+    private struct ModelSelectionKey: Hashable {
+        let mode: DocumentRecognitionMode
+        let modelSize: DocumentRecognitionModelSize
+    }
 
     public let modelRoot: URL
     private var engine: PPStructureV3Engine?
-    private var ocrEngine: OCRRecognizer?
-    private var validatedModes: Set<DocumentRecognitionMode> = []
+    private var ocrEngines: [OCRSessionKey: OCRRecognizer] = [:]
+    private var validatedSelections: Set<ModelSelectionKey> = []
 
     public init(modelRoot: URL = DocumentRecognitionService.defaultModelRoot()) {
         self.modelRoot = modelRoot
@@ -130,15 +195,23 @@ public actor DocumentRecognitionService {
     }
 
     public func modelsReady(mode: DocumentRecognitionMode) -> Bool {
-        if validatedModes.contains(mode) { return true }
-        let ready = Self.modelComponents(for: mode).allSatisfy { component in
+        modelsReady(mode: mode, modelSize: .server)
+    }
+
+    public func modelsReady(
+        mode: DocumentRecognitionMode,
+        modelSize: DocumentRecognitionModelSize
+    ) -> Bool {
+        let selection = ModelSelectionKey(mode: mode, modelSize: mode == .ocr ? modelSize : .server)
+        if validatedSelections.contains(selection) { return true }
+        let ready = Self.modelComponents(for: mode, modelSize: modelSize).allSatisfy { component in
             let directory = modelRoot.appendingPathComponent(component.artifact.name, isDirectory: true)
             let model = directory.appendingPathComponent("inference.onnx")
             let config = directory.appendingPathComponent("inference.yml")
             return (try? PaddleOCRModelStore.verify(file: model, sha256: component.artifact.modelSHA256)) == true
                 && (try? PaddleOCRModelStore.verify(file: config, sha256: component.artifact.configurationSHA256)) == true
         }
-        if ready { validatedModes.insert(mode) }
+        if ready { validatedSelections.insert(selection) }
         return ready
     }
 
@@ -152,22 +225,51 @@ public actor DocumentRecognitionService {
         mode: DocumentRecognitionMode,
         progress: @Sendable (RecognitionModelProgress) -> Void = { _ in }
     ) async throws {
+        try await downloadModels(mode: mode, modelSize: .server, progress: progress)
+    }
+
+    public func downloadModels(
+        mode: DocumentRecognitionMode,
+        modelSize: DocumentRecognitionModelSize,
+        progress: @Sendable (RecognitionModelProgress) -> Void = { _ in }
+    ) async throws {
         engine = nil
-        ocrEngine = nil
-        validatedModes.removeAll()
-        let components = Self.modelComponents(for: mode)
+        ocrEngines.removeAll()
+        validatedSelections.removeAll()
+        let components = Self.modelComponents(for: mode, modelSize: modelSize)
         for (index, component) in components.enumerated() {
             progress(.init(completed: index, total: components.count, name: component.title))
             _ = try await PaddleOCRModelStore.download(component.artifact, into: modelRoot)
         }
-        validatedModes.insert(mode)
+        validatedSelections.insert(.init(mode: mode, modelSize: mode == .ocr ? modelSize : .server))
         progress(.init(completed: components.count, total: components.count, name: "模型校验完成"))
     }
 
     public nonisolated static func modelComponents(for mode: DocumentRecognitionMode) -> [RecognitionModelComponent] {
+        modelComponents(for: mode, modelSize: .server)
+    }
+
+    public nonisolated static func modelComponents(
+        for mode: DocumentRecognitionMode,
+        modelSize: DocumentRecognitionModelSize
+    ) -> [RecognitionModelComponent] {
         switch mode {
         case .structure: modelComponents
-        case .ocr: Array(modelComponents.prefix(2))
+        case .ocr: ocrModelComponents(for: modelSize)
+        }
+    }
+
+    public nonisolated static func ocrModelComponents(
+        for modelSize: DocumentRecognitionModelSize
+    ) -> [RecognitionModelComponent] {
+        switch modelSize {
+        case .mobile:
+            [
+                .init(title: "PP-OCRv5 Mobile 文本检测", artifact: mobileDetectionArtifact),
+                .init(title: "PP-OCRv5 Mobile 文本识别", artifact: mobileRecognitionArtifact),
+            ]
+        case .server:
+            Array(modelComponents.prefix(2))
         }
     }
 
@@ -176,10 +278,17 @@ public actor DocumentRecognitionService {
         configuration: DocumentRecognitionConfiguration
     ) throws -> StructureBatchResult {
         guard !documents.isEmpty else { throw DocumentRecognitionError.noDocuments }
+        if configuration.mode == .ocr,
+           configuration.ocrModelSize == .mobile,
+           configuration.ocrProvider == .coreML {
+            throw DocumentRecognitionError.unsupportedOCRCombination
+        }
         if let unsupported = documents.first(where: { !Self.accepts($0) }) {
             throw DocumentRecognitionError.unsupportedInput(unsupported.lastPathComponent)
         }
-        guard modelsReady(mode: configuration.mode) else { throw DocumentRecognitionError.modelsMissing }
+        guard modelsReady(mode: configuration.mode, modelSize: configuration.ocrModelSize) else {
+            throw DocumentRecognitionError.modelsMissing
+        }
         if configuration.mode == .ocr {
             return try analyzeOCR(documents: documents, configuration: configuration)
         }
@@ -196,8 +305,9 @@ public actor DocumentRecognitionService {
         documents: [URL],
         configuration: DocumentRecognitionConfiguration
     ) throws -> StructureBatchResult {
-        let recognizer = try ocrEngine ?? makeOCREngine()
-        ocrEngine = recognizer
+        let key = OCRSessionKey(provider: configuration.ocrProvider, modelSize: configuration.ocrModelSize)
+        let recognizer = try ocrEngines[key] ?? makeOCREngine(provider: key.provider, modelSize: key.modelSize)
+        ocrEngines[key] = recognizer
         let batchStarted = ContinuousClock.now
         var results: [StructureDocumentResult] = []
         var itemSeconds: [Double] = []
@@ -220,16 +330,20 @@ public actor DocumentRecognitionService {
         return StructureBatchResult(documents: results, metrics: metrics)
     }
 
-    private func makeOCREngine() throws -> OCRRecognizer {
-        let detection = modelFiles(PaddleOCRModelCatalog.ocrV5ServerDetection)
-        let recognition = modelFiles(PaddleOCRModelCatalog.ocrV5ServerRecognition)
+    private func makeOCREngine(
+        provider: DocumentRecognitionProvider,
+        modelSize: DocumentRecognitionModelSize
+    ) throws -> OCRRecognizer {
+        let artifacts = Self.ocrModelComponents(for: modelSize).map(\.artifact)
+        let detection = modelFiles(artifacts[0])
+        let recognition = modelFiles(artifacts[1])
         return try OCRRecognizer(
             models: OCRModelConfiguration(
                 detectionModel: detection.model,
                 recognitionModel: recognition.model,
                 recognitionConfiguration: recognition.configuration
             ),
-            executionProvider: .cpu
+            executionProvider: provider.sdkProvider
         )
     }
 
@@ -337,6 +451,23 @@ public actor DocumentRecognitionService {
     private nonisolated static func seconds(_ duration: Duration) -> Double {
         let components = duration.components
         return Double(components.seconds) + Double(components.attoseconds) / 1e18
+    }
+
+    private nonisolated static func modelArtifact(
+        name: String,
+        revision: String,
+        modelSHA256: String,
+        configurationSHA256: String
+    ) -> PaddleOCRModelArtifact {
+        let base = URL(string: "https://huggingface.co/PaddlePaddle/\(name)/resolve/\(revision)/")!
+        return PaddleOCRModelArtifact(
+            name: name,
+            revision: revision,
+            modelURL: base.appendingPathComponent("inference.onnx"),
+            configurationURL: base.appendingPathComponent("inference.yml"),
+            modelSHA256: modelSHA256,
+            configurationSHA256: configurationSHA256
+        )
     }
 
     private nonisolated static func percentile(_ values: [Double], _ percentile: Double) -> Double {

@@ -15,6 +15,12 @@ case "$VERSION" in
   *) echo "Unexpected version response: $VERSION" >&2; exit 1 ;;
 esac
 
+HELP=$($CLI)
+case "$HELP" in
+  *'--ocr-only'*'--model-size mobile|server'*'--provider coreml|cpu'*) ;;
+  *) echo "OCR model-size/provider options missing from CLI help" >&2; exit 1 ;;
+esac
+
 MODEL_DIR=$(mktemp -d "${TMPDIR:-/tmp}/filenest-cli-models.XXXXXX")
 trap 'rmdir "$MODEL_DIR" 2>/dev/null || true' EXIT
 STATUS=$($CLI models status --model-dir "$MODEL_DIR")
@@ -25,8 +31,14 @@ esac
 
 OCR_STATUS=$($CLI models status --ocr-only --model-dir "$MODEL_DIR")
 case "$OCR_STATUS" in
-  *'"mode":"ocr"'*'"modelCount":2'*'"ok":true'*'"ready":false'*) ;;
+  *'"mode":"ocr"'*'"modelCount":2'*'"modelSize":"server"'*'"ok":true'*'"ready":false'*) ;;
   *) echo "Unexpected OCR-only model status response: $OCR_STATUS" >&2; exit 1 ;;
+esac
+
+MOBILE_OCR_STATUS=$($CLI models status --ocr-only --model-size mobile --model-dir "$MODEL_DIR")
+case "$MOBILE_OCR_STATUS" in
+  *'"mode":"ocr"'*'"modelCount":2'*'"modelSize":"mobile"'*'"ok":true'*'"ready":false'*) ;;
+  *) echo "Unexpected Mobile OCR model status response: $MOBILE_OCR_STATUS" >&2; exit 1 ;;
 esac
 
 TOOLS=$($CLI tools)

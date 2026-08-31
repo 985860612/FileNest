@@ -73,9 +73,9 @@ dist/cli/filenest-cli run hash_compute \
   --arguments '{"files":["/tmp/example.zip"],"algorithm":"SHA-256"}'
 dist/cli/filenest-cli models status
 dist/cli/filenest-cli models download
-dist/cli/filenest-cli models download --ocr-only
+dist/cli/filenest-cli models download --ocr-only --model-size mobile
 dist/cli/filenest-cli recognize --ocr-only --input ./scans --output ./ocr-results \
-  --format markdown
+  --format markdown --model-size mobile --provider cpu
 dist/cli/filenest-cli recognize --input ./documents --output ./results \
   --format markdown --jobs 2
 ```
@@ -103,7 +103,19 @@ command = "/Applications/文件台.app/Contents/MacOS/filenest-mcp"
 
 也可把命令替换为发行包中 `dist/mcp/filenest-mcp` 的绝对路径；必须连同同目录的 `Frameworks` 一起移动。工具参数通过 MCP 的 `inputSchema` 自描述，可先调用 `tools/list` 查看完整清单。
 
-支持 `json|markdown|html|docx|xlsx`；可重复传入 `--input`。`--ocr-only` 仅运行 PP-OCRv5 检测与文字识别，模型下载也可使用同一参数只下载 2 个 OCR 模型。MCP 对应传 `mode="ocr"`。完整结构识别中，`--jobs 2` 是 M 系列 Mac 的推荐平衡配置，`--jobs 4` 吞吐更高但峰值内存明显增加。当前 server 模型固定走实测结果一致的 CPU 路径；CoreML 虽可能更快，但已发现识别结果缺失，故不作为可选项。
+支持 `json|markdown|html|docx|xlsx`；可重复传入 `--input`。`--ocr-only` 仅运行 PP-OCRv5 检测与文字识别；用 `--model-size mobile|server` 切换约 21 MiB 的 Mobile 小模型或约 165 MiB 的 Server 大模型。Server 可配 `--provider coreml|cpu`，默认 CoreML；Mobile 固定使用 CPU，因为 Mobile + CoreML 在结果一致性校验中出现严重乱码，CLI/MCP 和核心服务都会拒绝该组合。MCP 对应传 `mode="ocr"`、`modelSize="mobile"|"server"` 与 `provider="coreml"|"cpu"`。
+
+同一张 1656×1968 中文截图的冷进程实测如下；耗时取核心识别计时，RSS 取 `/usr/bin/time -l` 峰值：
+
+| 模型 | 推理 | 耗时 | 峰值 RSS | 结果 |
+| --- | --- | ---: | ---: | --- |
+| Mobile | CPU | 3.12 秒 | 420 MiB | 完整 31 行，速度/内存优先 |
+| Server | CoreML | 3.39 秒 | 3.21 GiB | 完整 31 行，与 CPU 仅 2 处项目符号差异 |
+| Server | CPU | 8.62 秒 | 1.38 GiB | 完整 31 行，精度基准 |
+
+复用同一模型会话连续处理 5 张图时，Mobile + CPU 为 15.62 秒（0.320 张/秒、648 MiB），Server + CoreML 为 15.18 秒（0.329 张/秒、3.71 GiB），Server + CPU 为 43.35 秒（0.115 张/秒、2.11 GiB）。因此 Mobile + CPU 的批量吞吐接近 Server + CoreML，但峰值内存约为后者的六分之一。
+
+完整结构识别仍固定使用已验证的 Server + CPU 路径；`--jobs 2` 是 M 系列 Mac 的推荐平衡配置，`--jobs 4` 吞吐更高但峰值内存明显增加。
 
 自动下载的 11 个校验模型覆盖 OCR、版面、阅读顺序、方向/矫正和有线/无线表格。公式与图表生成模型按上游许可单独提供时，可放到模型目录的 `Formula/{encoder.onnx,decoder.onnx,tokenizer.json}` 与 `Chart/{encoder.onnx,decoder.onnx,prompt_ids.txt,tokenizer.json}`；SDK 会惰性加载，CLI 用 `--charts` 开启图表生成。
 

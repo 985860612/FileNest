@@ -73,9 +73,9 @@ dist/cli/filenest-cli run hash_compute \
   --arguments '{"files":["/tmp/example.zip"],"algorithm":"SHA-256"}'
 dist/cli/filenest-cli models status
 dist/cli/filenest-cli models download
-dist/cli/filenest-cli models download --ocr-only
+dist/cli/filenest-cli models download --ocr-only --model-size mobile
 dist/cli/filenest-cli recognize --ocr-only --input ./scans --output ./ocr-results \
-  --format markdown
+  --format markdown --model-size mobile --provider cpu
 dist/cli/filenest-cli recognize --input ./documents --output ./results \
   --format markdown --jobs 2
 ```
@@ -103,7 +103,19 @@ command = "/Applications/文件台.app/Contents/MacOS/filenest-mcp"
 
 The command may instead point at the absolute path to `dist/mcp/filenest-mcp`; keep its sibling `Frameworks` directory with it. Call `tools/list` for complete self-describing input schemas.
 
-Formats are `json|markdown|html|docx|xlsx`, and `--input` may be repeated. Pass `--ocr-only` to run only PP-OCRv5 text detection and recognition; the same flag on `models download` downloads only the two OCR models. For MCP, pass `mode="ocr"`. Concurrency 2 is the balanced M-series default for full structure recognition; concurrency 4 improves throughput with substantially higher peak memory. Server models use the verified CPU path because CoreML produced incomplete recognition output in validation.
+Formats are `json|markdown|html|docx|xlsx`, and `--input` may be repeated. Pass `--ocr-only` to run only PP-OCRv5 detection and recognition. Select the roughly 21 MiB Mobile pair or roughly 165 MiB Server pair with `--model-size mobile|server`. Server supports `--provider coreml|cpu` and defaults to CoreML. Mobile is pinned to CPU because Mobile + CoreML produced severely corrupted text in parity validation; the core service, CLI, and MCP all reject that combination. For MCP, pass `mode="ocr"`, `modelSize="mobile"|"server"`, and `provider="coreml"|"cpu"`.
+
+Cold-process results on the same 1656×1968 Chinese screenshot are below. Latency is the core recognition timer and peak RSS comes from `/usr/bin/time -l`.
+
+| Model | Provider | Latency | Peak RSS | Result |
+| --- | --- | ---: | ---: | --- |
+| Mobile | CPU | 3.12 s | 420 MiB | all 31 lines; speed/memory oriented |
+| Server | CoreML | 3.39 s | 3.21 GiB | all 31 lines; only two bullet differences from CPU |
+| Server | CPU | 8.62 s | 1.38 GiB | all 31 lines; accuracy baseline |
+
+With one model session reused across five images, Mobile + CPU took 15.62 s (0.320 images/s, 648 MiB), Server + CoreML took 15.18 s (0.329 images/s, 3.71 GiB), and Server + CPU took 43.35 s (0.115 images/s, 2.11 GiB). Mobile + CPU therefore approaches Server + CoreML batch throughput at roughly one sixth of its peak memory.
+
+Full structure recognition remains on the verified Server + CPU path. Concurrency 2 is the balanced M-series default; concurrency 4 improves throughput with substantially higher peak memory.
 
 The 11 checksum-pinned catalog models cover OCR, layout, reading order, orientation/unwarping, and wired/wireless tables. Separately licensed formula/chart generation files can be placed under `Formula/{encoder.onnx,decoder.onnx,tokenizer.json}` and `Chart/{encoder.onnx,decoder.onnx,prompt_ids.txt,tokenizer.json}` in the model directory. They are loaded lazily; pass `--charts` to enable chart generation.
 
