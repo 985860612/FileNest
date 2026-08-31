@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import PDFKit
 import Testing
-@testable import SevenZipMac
+@testable import FileNestKit
 
 @Suite("PDF report self signature")
 struct PDFReportSelfSignatureTests {
