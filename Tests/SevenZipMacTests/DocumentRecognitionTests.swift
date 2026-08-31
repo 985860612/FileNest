@@ -1,4 +1,4 @@
-import FileNestOCRCore
+@testable import FileNestOCRCore
 import Foundation
 import PaddleOCRCoreML
 import Testing
@@ -8,9 +8,10 @@ import Testing
 struct DocumentRecognitionTests {
     @Test("SDK, model catalog and supported inputs are wired")
     func sdkAndCatalog() {
-        #expect(DocumentRecognitionService.sdkVersion == "0.3.1")
+        #expect(DocumentRecognitionService.sdkVersion == "0.3.3")
         #expect(DocumentRecognitionService.modelComponents.count == 11)
         #expect(DocumentRecognitionService.modelComponents(for: .ocr).count == 2)
+        #expect(DocumentRecognitionService.modelComponents(for: .vision).isEmpty)
         #expect(DocumentRecognitionService.modelComponents(for: .ocr).map(\.artifact.name) == [
             PaddleOCRModelCatalog.ocrV5ServerDetection.name,
             PaddleOCRModelCatalog.ocrV5ServerRecognition.name,
@@ -26,6 +27,38 @@ struct DocumentRecognitionTests {
         #expect(!DocumentRecognitionService.accepts(URL(fileURLWithPath: "/tmp/a.txt")))
     }
 
+    @Test("Apple Vision entry uses the system accurate engine without models")
+    @MainActor
+    func visionMode() async {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let service = DocumentRecognitionService(modelRoot: root)
+        #expect(await service.modelsReady(mode: .vision))
+        #expect(DocumentRecognitionConfiguration(mode: .vision).mode == .vision)
+        #expect(AppDestination.visionRecognition.title == "Apple Vision OCR")
+        #expect(AppDestination.visionRecognition.subtitle.contains("accurate"))
+
+        let model = DocumentRecognitionWorkspaceModel(mode: .vision, service: service)
+        #expect(model.mode == .vision)
+        #expect(model.maxConcurrentDocuments == 1)
+        #expect(!model.classifyOrientation)
+        #expect(!model.recognizeTables)
+    }
+
+    @Test("Apple Vision accurate recognizes a real image when provided")
+    func visionIntegration() async throws {
+        guard let path = ProcessInfo.processInfo.environment["FILENEST_VISION_TEST_IMAGE"] else { return }
+        let source = URL(fileURLWithPath: path)
+        let service = DocumentRecognitionService()
+        let batch = try await service.analyze(
+            documents: [source],
+            configuration: .init(mode: .vision)
+        )
+        #expect(batch.documents.count == 1)
+        #expect(batch.documents[0].pages.count == 1)
+        #expect(batch.documents[0].pages[0].overallOCR.lines.count >= 10)
+        #expect(!batch.documents[0].pages[0].overallOCR.text.isEmpty)
+    }
+
     @Test("OCR-only entry and configuration disable structure analysis")
     @MainActor
     func ocrOnlyMode() {
@@ -37,6 +70,9 @@ struct DocumentRecognitionTests {
         #expect(DocumentRecognitionConfiguration(mode: .ocr, ocrModelSize: .mobile).ocrModelSize == .mobile)
         #expect(DocumentRecognitionProvider.coreML.rawValue == "coreml")
         #expect(DocumentRecognitionProvider.coreML.title == "CoreML 快速")
+        #expect(DocumentRecognitionProvider.coreML.sdkProvider(for: .mobile) == .coreMLStaticShapesOnly)
+        #expect(DocumentRecognitionProvider.coreML.sdkProvider(for: .server) == .coreML)
+        #expect(DocumentRecognitionProvider.cpu.sdkProvider(for: .mobile) == .cpu)
         #expect(DocumentRecognitionModelSize.mobile.rawValue == "mobile")
         #expect(DocumentRecognitionModelSize.mobile.title == "小模型（Mobile）")
         #expect(AppDestination.textRecognition.title == "文字识别 OCR")
@@ -66,23 +102,7 @@ struct DocumentRecognitionTests {
         #expect(await !service.modelsReady())
         #expect(await !service.modelsReady(mode: .ocr))
         #expect(await !service.modelsReady(mode: .ocr, modelSize: .mobile))
-    }
-
-    @Test("Mobile OCR rejects the CoreML combination that failed result parity")
-    func mobileCoreMLIsRejected() async {
-        let service = DocumentRecognitionService()
-        do {
-            _ = try await service.analyze(
-                documents: [URL(fileURLWithPath: "/tmp/input.png")],
-                configuration: .init(mode: .ocr, ocrProvider: .coreML, ocrModelSize: .mobile)
-            )
-            Issue.record("Expected Mobile + CoreML to be rejected")
-        } catch {
-            guard case DocumentRecognitionError.unsupportedOCRCombination = error else {
-                Issue.record("Unexpected error: \(error)")
-                return
-            }
-        }
+        #expect(await service.modelsReady(mode: .vision))
     }
 
     @Test("Every structured export format writes a usable file")

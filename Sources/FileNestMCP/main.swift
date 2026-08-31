@@ -28,7 +28,7 @@ struct FileNestMCP {
 
     private static func handle(_ method: String, params: [String: Any]) async throws -> [String: Any] {
         switch method {
-        case "initialize": return ["protocolVersion": "2025-03-26", "capabilities": ["tools": ["listChanged": false]], "serverInfo": ["name": "filenest-mcp", "version": "0.3.3"]]
+        case "initialize": return ["protocolVersion": "2025-03-26", "capabilities": ["tools": ["listChanged": false]], "serverInfo": ["name": "filenest-mcp", "version": "0.3.5"]]
         case "ping": return [:]
         case "tools/list": return ["tools": toolDefinitions]
         case "tools/call":
@@ -52,7 +52,7 @@ struct FileNestMCP {
             return [
                 "ready": await service.modelsReady(mode: mode, modelSize: modelSize),
                 "mode": mode.rawValue,
-                "modelSize": mode == .ocr ? modelSize.rawValue : DocumentRecognitionModelSize.server.rawValue,
+                "modelSize": recognitionModelLabel(mode, modelSize),
                 "modelDirectory": root.path,
                 "modelCount": DocumentRecognitionService.modelComponents(for: mode, modelSize: modelSize).count,
             ]
@@ -64,7 +64,7 @@ struct FileNestMCP {
             return [
                 "ready": true,
                 "mode": mode.rawValue,
-                "modelSize": mode == .ocr ? modelSize.rawValue : DocumentRecognitionModelSize.server.rawValue,
+                "modelSize": recognitionModelLabel(mode, modelSize),
                 "modelDirectory": root.path,
             ]
         case "document_recognize": return try await recognize(arguments)
@@ -89,7 +89,7 @@ struct FileNestMCP {
             try DocumentRecognitionService.export(document, format: format, to: destination)
             outputs.append(["input": document.source.path, "output": destination.path, "seconds": batch.metrics.itemSeconds[index]])
         }
-        return ["documents": outputs, "mode": mode.rawValue, "modelSize": mode == .ocr ? modelSize.rawValue : DocumentRecognitionModelSize.server.rawValue, "provider": mode == .ocr ? provider.rawValue : DocumentRecognitionProvider.cpu.rawValue, "metrics": ["totalSeconds": batch.metrics.totalSeconds, "throughputPerSecond": batch.metrics.throughputPerSecond, "p50Seconds": batch.metrics.p50Seconds, "p95Seconds": batch.metrics.p95Seconds]]
+        return ["documents": outputs, "mode": mode.rawValue, "modelSize": recognitionModelLabel(mode, modelSize), "provider": recognitionProviderLabel(mode, provider), "metrics": ["totalSeconds": batch.metrics.totalSeconds, "throughputPerSecond": batch.metrics.throughputPerSecond, "p50Seconds": batch.metrics.p50Seconds, "p95Seconds": batch.metrics.p95Seconds]]
     }
 
     private static var toolDefinitions: [[String: Any]] {
@@ -124,10 +124,10 @@ struct FileNestMCP {
             tool("pdf_signatures", "提取并验证 PDF 数字签名", required: ["file"], ["file": path]),
             tool("spreadsheet_group", "按指定列分组，将其他列去重合并", required: ["workbook", "groupingColumn", "output"], ["workbook": path, "groupingColumn": property("string", "列标题或从 1 开始的列号"), "output": path]),
             tool("ncm_convert", "恢复 NCM 音频到目标目录", required: ["source", "output"], ["source": path, "output": path]),
-            tool("document_models_status", "检查 PP-StructureV3 或 OCR-only 模型是否就绪", required: [], ["modelDirectory": path, "mode": enumProperty(["structure", "ocr"]), "modelSize": enumProperty(["mobile", "server"])]),
-            tool("document_models_download", "下载并校验 PP-StructureV3 或 OCR-only 模型", required: [], ["modelDirectory": path, "mode": enumProperty(["structure", "ocr"]), "modelSize": enumProperty(["mobile", "server"])]),
-            tool("document_recognize", "批量识别图片或 PDF；mode=ocr 时仅运行 PP-OCRv5 检测与识别", required: ["inputs", "output"], [
-                "inputs": paths, "output": path, "modelDirectory": path, "mode": enumProperty(["structure", "ocr"]),
+            tool("document_models_status", "检查结构化、Paddle OCR 模型或系统 Vision 引擎是否就绪", required: [], ["modelDirectory": path, "mode": enumProperty(["structure", "ocr", "vision"]), "modelSize": enumProperty(["mobile", "server"])]),
+            tool("document_models_download", "下载并校验 PP-StructureV3 或 Paddle OCR 模型；Vision 无需下载", required: [], ["modelDirectory": path, "mode": enumProperty(["structure", "ocr", "vision"]), "modelSize": enumProperty(["mobile", "server"])]),
+            tool("document_recognize", "批量识别图片或 PDF；mode=ocr 使用 PP-OCRv5，mode=vision 使用 Apple Vision accurate", required: ["inputs", "output"], [
+                "inputs": paths, "output": path, "modelDirectory": path, "mode": enumProperty(["structure", "ocr", "vision"]),
                 "provider": enumProperty(["coreml", "cpu"]),
                 "modelSize": enumProperty(["mobile", "server"]),
                 "format": enumProperty(["json", "markdown", "html", "docx", "xlsx"]), "jobs": property("integer", "并发文档数"),
@@ -157,12 +157,31 @@ struct FileNestMCP {
     }
 
     private static func modelRoot(_ a: [String: Any]) -> URL { (a["modelDirectory"] as? String).map(fileURL) ?? DocumentRecognitionService.defaultModelRoot() }
-    private static func recognitionMode(_ a: [String: Any]) -> DocumentRecognitionMode { (a["mode"] as? String) == "ocr" ? .ocr : .structure }
+    private static func recognitionMode(_ a: [String: Any]) -> DocumentRecognitionMode {
+        switch (a["mode"] as? String)?.lowercased() {
+        case "ocr": .ocr
+        case "vision": .vision
+        default: .structure
+        }
+    }
+    private static func recognitionProviderLabel(_ mode: DocumentRecognitionMode, _ provider: DocumentRecognitionProvider) -> String {
+        switch mode {
+        case .structure: DocumentRecognitionProvider.cpu.rawValue
+        case .ocr: provider.rawValue
+        case .vision: "vision-accurate"
+        }
+    }
+    private static func recognitionModelLabel(_ mode: DocumentRecognitionMode, _ modelSize: DocumentRecognitionModelSize) -> String {
+        switch mode {
+        case .structure: DocumentRecognitionModelSize.server.rawValue
+        case .ocr: modelSize.rawValue
+        case .vision: "system"
+        }
+    }
     private static func recognitionProvider(_ a: [String: Any], modelSize: DocumentRecognitionModelSize) throws -> DocumentRecognitionProvider {
-        let defaultProvider: DocumentRecognitionProvider = modelSize == .mobile ? .cpu : .coreML
+        let defaultProvider: DocumentRecognitionProvider = .coreML
         let value = (a["provider"] as? String ?? defaultProvider.rawValue).lowercased()
         guard let provider = DocumentRecognitionProvider(rawValue: value) else { throw MCPError.invalidRequest("provider 仅支持 coreml 或 cpu") }
-        if modelSize == .mobile, provider == .coreML { throw MCPError.invalidRequest("Mobile + CoreML 结果校验未通过；Mobile 仅支持 CPU") }
         return provider
     }
     private static func recognitionModelSize(_ a: [String: Any]) throws -> DocumentRecognitionModelSize {

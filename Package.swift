@@ -8,7 +8,7 @@ if let localPath = ProcessInfo.processInfo.environment["PADDLEOCR_COREML_LOCAL_P
 } else {
     paddleOCRDependency = .package(
         url: "https://github.com/985860612/PaddleOCRCoreML.git",
-        exact: "0.3.1"
+        exact: "0.3.3"
     )
 }
 
@@ -48,7 +48,10 @@ let package = Package(
             dependencies: [
                 .product(name: "PaddleOCRCoreML", package: "PaddleOCRCoreML")
             ],
-            path: "Sources/FileNestOCRCore"
+            path: "Sources/FileNestOCRCore",
+            linkerSettings: [
+                .linkedFramework("Vision")
+            ]
         ),
         .executableTarget(
             name: "FileNestCLI",

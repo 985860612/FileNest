@@ -27,6 +27,7 @@ A native file workspace for macOS with archive creation, extraction and browsing
 - Convert images to PDF, merge sorted PDF/image folders, and split text PDFs by keyword
 - Extract PDF text matches to XLSX and group, de-duplicate, and merge spreadsheet rows by a selected column
 - Use the dedicated OCR entry to load only the two PP-OCRv5 detection/recognition models, skipping layout, reading order, tables, formulae, and charts
+- Use the dedicated Apple Vision OCR entry for system-native `accurate` Chinese/English recognition with no model download
 - Batch-recognize images and PDFs with native PP-StructureV3: PP-OCRv5, layout, reading order, orientation/unwarping, and wired/wireless tables; export JSON, Markdown, HTML, DOCX, or XLSX
 - Reuse model sessions across a batch (default concurrency 2) and report total time, throughput, P50, and P95
 - Include directories, parent folders, detected types, byte counts, and timestamps in catalog exports
@@ -75,7 +76,9 @@ dist/cli/filenest-cli models status
 dist/cli/filenest-cli models download
 dist/cli/filenest-cli models download --ocr-only --model-size mobile
 dist/cli/filenest-cli recognize --ocr-only --input ./scans --output ./ocr-results \
-  --format markdown --model-size mobile --provider cpu
+  --format markdown --model-size mobile --provider coreml
+dist/cli/filenest-cli recognize --engine vision --input ./scans --output ./vision-results \
+  --format markdown
 dist/cli/filenest-cli recognize --input ./documents --output ./results \
   --format markdown --jobs 2
 ```
@@ -103,17 +106,21 @@ command = "/Applications/文件台.app/Contents/MacOS/filenest-mcp"
 
 The command may instead point at the absolute path to `dist/mcp/filenest-mcp`; keep its sibling `Frameworks` directory with it. Call `tools/list` for complete self-describing input schemas.
 
-Formats are `json|markdown|html|docx|xlsx`, and `--input` may be repeated. Pass `--ocr-only` to run only PP-OCRv5 detection and recognition. Select the roughly 21 MiB Mobile pair or roughly 165 MiB Server pair with `--model-size mobile|server`. Server supports `--provider coreml|cpu` and defaults to CoreML. Mobile is pinned to CPU because Mobile + CoreML produced severely corrupted text in parity validation; the core service, CLI, and MCP all reject that combination. For MCP, pass `mode="ocr"`, `modelSize="mobile"|"server"`, and `provider="coreml"|"cpu"`.
+Formats are `json|markdown|html|docx|xlsx`, and `--input` may be repeated. Select PP-StructureV3, PP-OCRv5, or Apple Vision with `--engine structure|paddle|vision`; `--ocr-only` remains an alias for Paddle. The 21 MiB Mobile and 165 MiB Server Paddle pairs support `--provider coreml|cpu`. Mobile CoreML uses the verified static-shape compatibility path to prevent corrupted dynamic-subgraph output. Vision is fixed to `accurate`, `zh-Hans + en-US`, and language correction, with no model download. MCP accepts `mode="structure"|"ocr"|"vision"`.
 
-Cold-process results on the same 1656×1968 Chinese screenshot are below. Latency is the core recognition timer and peak RSS comes from `/usr/bin/time -l`.
+Steady-state results on the same 1656×1968 Chinese screenshot are below. Latency is the core recognition timer and peak RSS comes from `/usr/bin/time -l`.
 
 | Model | Provider | Latency | Peak RSS | Result |
 | --- | --- | ---: | ---: | --- |
-| Mobile | CPU | 3.12 s | 420 MiB | all 31 lines; speed/memory oriented |
+| Mobile | CPU | 3.98 s | 385 MiB | all 31 lines, 948 characters |
+| Mobile | CoreML compatibility | 3.47 s | 406 MiB | byte-identical to CPU |
 | Server | CoreML | 3.39 s | 3.21 GiB | all 31 lines; only two bullet differences from CPU |
 | Server | CPU | 8.62 s | 1.38 GiB | all 31 lines; accuracy baseline |
+| Apple Vision | accurate | **0.77 s** | about 237 MiB | 29 natural lines, 1,018 characters |
 
-With one model session reused across five images, Mobile + CPU took 15.62 s (0.320 images/s, 648 MiB), Server + CoreML took 15.18 s (0.329 images/s, 3.71 GiB), and Server + CPU took 43.35 s (0.115 images/s, 2.11 GiB). Mobile + CPU therefore approaches Server + CoreML batch throughput at roughly one sixth of its peak memory.
+With one session reused across five images, the Apple Vision accurate release build took **3.22 s (1.55 images/s, about 237 MiB)** with identical text hashes across all five outputs. Mobile + CPU took 16.24 s (639 MiB), Mobile + CoreML compatibility 16.15 s (643 MiB), Server + CoreML 15.18 s (3.71 GiB), and Server + CPU 43.35 s (2.11 GiB). Use Vision for fast text extraction, Paddle OCR for Paddle-model parity, and PP-StructureV3 for layout/table structure.
+
+On this Mac, the first Vision accurate page from the newly built release binary took 30.13 s (32.52 s for five pages) while macOS prepared recognition resources. macOS caches that preparation; later launches and batches return to the steady-state figures above.
 
 Full structure recognition remains on the verified Server + CPU path. Concurrency 2 is the balanced M-series default; concurrency 4 improves throughput with substantially higher peak memory.
 
@@ -129,7 +136,7 @@ SEVENZIP_ENGINE_INTEGRATION=1 swift test
 ./scripts/build-app.sh
 ```
 
-Architecture: `SwiftUI / AppKit / filenest-cli / filenest-mcp → FileNestKit / FileNestOCRCore → PaddleOCRCoreML / ONNX Runtime / 7-Zip SDK`.
+Architecture: `SwiftUI / AppKit / filenest-cli / filenest-mcp → FileNestKit / FileNestOCRCore → Apple Vision / PaddleOCRCoreML / ONNX Runtime / 7-Zip SDK`.
 
 ## Privacy and security
 
