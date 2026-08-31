@@ -30,6 +30,7 @@ struct RecognitionWorkspaceItem: Identifiable {
 
     var pageCount: Int { result?.pages.count ?? 0 }
     var blockCount: Int { result?.pages.reduce(0) { $0 + $1.blocks.count } ?? 0 }
+    var lineCount: Int { result?.pages.reduce(0) { $0 + $1.overallOCR.lines.count } ?? 0 }
 }
 
 @MainActor
@@ -48,16 +49,27 @@ final class DocumentRecognitionWorkspaceModel: ObservableObject {
     @Published var exportFormat: DocumentExportFormat = .markdown
     @Published var metrics: StructureBatchMetrics?
 
+    let mode: DocumentRecognitionMode
     let service: DocumentRecognitionService
 
-    init(service: DocumentRecognitionService = DocumentRecognitionService()) {
+    init(
+        mode: DocumentRecognitionMode = .structure,
+        service: DocumentRecognitionService = DocumentRecognitionService()
+    ) {
+        self.mode = mode
         self.service = service
+        if mode == .ocr {
+            maxConcurrentDocuments = 1
+            classifyOrientation = false
+            recognizeTables = false
+            statusMessage = "选择图片或 PDF，首次使用只需下载 2 个 OCR 模型"
+        }
         refreshModelStatus()
     }
 
     func refreshModelStatus() {
         Task {
-            modelsReady = await service.modelsReady()
+            modelsReady = await service.modelsReady(mode: mode)
             if modelsReady, items.isEmpty { statusMessage = "模型已就绪，请选择图片或 PDF" }
         }
     }
@@ -95,10 +107,10 @@ final class DocumentRecognitionWorkspaceModel: ObservableObject {
         guard !isDownloading else { return }
         isDownloading = true
         errorMessage = nil
-        statusMessage = "正在下载并校验 PP-StructureV3 模型…"
+        statusMessage = mode == .ocr ? "正在下载并校验 PP-OCRv5 模型…" : "正在下载并校验 PP-StructureV3 模型…"
         Task {
             do {
-                try await service.downloadModels { progress in
+                try await service.downloadModels(mode: mode) { progress in
                     Task { @MainActor in
                         self.modelProgress = "\(progress.completed)/\(progress.total) · \(progress.name)"
                     }
@@ -122,9 +134,12 @@ final class DocumentRecognitionWorkspaceModel: ObservableObject {
         errorMessage = nil
         metrics = nil
         for index in items.indices { items[index].state = .processing; items[index].result = nil; items[index].seconds = nil }
-        statusMessage = "正在批量识别 \(items.count) 个文档…"
+        statusMessage = mode == .ocr
+            ? "正在进行纯文字 OCR：\(items.count) 个文档…"
+            : "正在批量识别 \(items.count) 个文档…"
         let documents = items.map(\.source)
         let configuration = DocumentRecognitionConfiguration(
+            mode: mode,
             maxConcurrentDocuments: maxConcurrentDocuments,
             classifyOrientation: classifyOrientation,
             unwarpDocument: unwarpDocument,

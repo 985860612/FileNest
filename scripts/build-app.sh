@@ -5,6 +5,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 APP="$ROOT/dist/文件台.app"
 CLI_DIST="$ROOT/dist/cli"
 MCP_DIST="$ROOT/dist/mcp"
+PADDLEOCR_SDK_ROOT=${PADDLEOCR_COREML_LOCAL_PATH:-"$ROOT/.build/checkouts/PaddleOCRCoreML"}
 
 if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode-beta.app/Contents/Developer ]; then
   export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer
@@ -41,11 +42,11 @@ done
 cp "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
 cp -R "$ROOT/ThirdParty/7zip" "$APP/Contents/Resources/7zip-licenses"
 cp -R "$ROOT/ThirdParty/webp" "$APP/Contents/Resources/webp-licenses"
-cp "$ROOT/.build/checkouts/PaddleOCRCoreML/LICENSE" \
+cp "$PADDLEOCR_SDK_ROOT/LICENSE" \
   "$APP/Contents/Resources/ocr-licenses/PaddleOCRCoreML-LICENSE"
 cp "$ROOT/.build/artifacts/paddleocrcoreml/onnxruntime/LICENSE" \
   "$APP/Contents/Resources/ocr-licenses/ONNXRuntime-LICENSE"
-cp "$ROOT/.build/checkouts/PaddleOCRCoreML/LICENSE" \
+cp "$PADDLEOCR_SDK_ROOT/LICENSE" \
   "$CLI_DIST/licenses/PaddleOCRCoreML-LICENSE"
 cp "$ROOT/.build/artifacts/paddleocrcoreml/onnxruntime/LICENSE" \
   "$CLI_DIST/licenses/ONNXRuntime-LICENSE"

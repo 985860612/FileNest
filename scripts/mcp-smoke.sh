@@ -23,7 +23,7 @@ if [ "$LINE_COUNT" -ne 3 ]; then
   exit 1
 fi
 
-for expected in '"name":"filenest-mcp"' '"name":"archive_create"' '"name":"document_recognize"' '"isError":true' 'confirm=true'; do
+for expected in '"name":"filenest-mcp"' '"version":"0.3.1"' '"name":"archive_create"' '"name":"document_recognize"' '"enum":["structure","ocr"]' '"isError":true' 'confirm=true'; do
   case "$RESPONSES" in
     *"$expected"*) ;;
     *) echo "Missing MCP response fragment: $expected" >&2; exit 1 ;;

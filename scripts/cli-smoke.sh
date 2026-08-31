@@ -11,7 +11,7 @@ fi
 
 VERSION=$($CLI version)
 case "$VERSION" in
-  *'"ok":true'*'"sdkVersion":"0.3.0"'*) ;;
+  *'"ok":true'*'"sdkVersion":"0.3.1"'*) ;;
   *) echo "Unexpected version response: $VERSION" >&2; exit 1 ;;
 esac
 
@@ -21,6 +21,12 @@ STATUS=$($CLI models status --model-dir "$MODEL_DIR")
 case "$STATUS" in
   *'"ok":true'*'"ready":false'*) ;;
   *) echo "Unexpected model status response: $STATUS" >&2; exit 1 ;;
+esac
+
+OCR_STATUS=$($CLI models status --ocr-only --model-dir "$MODEL_DIR")
+case "$OCR_STATUS" in
+  *'"mode":"ocr"'*'"modelCount":2'*'"ok":true'*'"ready":false'*) ;;
+  *) echo "Unexpected OCR-only model status response: $OCR_STATUS" >&2; exit 1 ;;
 esac
 
 TOOLS=$($CLI tools)

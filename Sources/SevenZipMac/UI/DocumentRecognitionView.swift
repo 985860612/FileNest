@@ -4,13 +4,16 @@ import SwiftUI
 struct DocumentRecognitionView: View {
     @ObservedObject var model: DocumentRecognitionWorkspaceModel
     @State private var dropTargeted = false
+    private var isOCR: Bool { model.mode == .ocr }
 
     var body: some View {
         VStack(spacing: 0) {
             TaskHeader(
-                title: "文档识别",
-                subtitle: "原生 PP-StructureV3：OCR、版面、阅读顺序与表格结构",
-                systemImage: "doc.text.magnifyingglass",
+                title: isOCR ? "文字识别（OCR）" : "文档识别",
+                subtitle: isOCR
+                    ? "原生 PP-OCRv5：只做文字检测与识别，不运行版面和表格模型"
+                    : "原生 PP-StructureV3：OCR、版面、阅读顺序与表格结构",
+                systemImage: isOCR ? "text.viewfinder" : "doc.text.magnifyingglass",
                 tint: FileNestTheme.teal
             )
             Divider()
@@ -51,11 +54,13 @@ struct DocumentRecognitionView: View {
                     .disabled(model.isDownloading || model.isWorking)
             }
             HStack(spacing: 16) {
-                Stepper("并发 \(model.maxConcurrentDocuments)", value: $model.maxConcurrentDocuments, in: 1...4)
-                    .frame(width: 120)
-                Toggle("方向校正", isOn: $model.classifyOrientation).toggleStyle(.checkbox)
-                Toggle("文档矫正", isOn: $model.unwarpDocument).toggleStyle(.checkbox)
-                Toggle("表格结构", isOn: $model.recognizeTables).toggleStyle(.checkbox)
+                if !isOCR {
+                    Stepper("并发 \(model.maxConcurrentDocuments)", value: $model.maxConcurrentDocuments, in: 1...4)
+                        .frame(width: 120)
+                    Toggle("方向校正", isOn: $model.classifyOrientation).toggleStyle(.checkbox)
+                    Toggle("文档矫正", isOn: $model.unwarpDocument).toggleStyle(.checkbox)
+                    Toggle("表格结构", isOn: $model.recognizeTables).toggleStyle(.checkbox)
+                }
                 Spacer()
                 Picker("导出", selection: $model.exportFormat) {
                     ForEach(DocumentExportFormat.allCases) { format in Text(format.rawValue).tag(format) }
@@ -63,11 +68,13 @@ struct DocumentRecognitionView: View {
                 .frame(width: 150)
                 Button("批量导出…", action: model.exportAll)
                     .disabled(model.isWorking || !model.items.contains { $0.result != nil })
-                Button("开始识别", action: model.recognize)
+                Button(isOCR ? "开始 OCR" : "开始识别", action: model.recognize)
                     .buttonStyle(.borderedProminent)
                     .disabled(model.isWorking || model.isDownloading || !model.modelsReady || model.items.isEmpty)
             }
-            Text("默认并发 2 是 M 系列 Mac 的内存/吞吐平衡点；CoreML 对当前 server 模型结果不一致，因此固定使用已验证的 CPU 路径。")
+            Text(isOCR
+                ? "仅加载 PP-OCRv5 检测与识别 2 个模型；PDF 按页转图后识别，不运行版面、阅读顺序、表格、公式或图表模型。"
+                : "默认并发 2 是 M 系列 Mac 的内存/吞吐平衡点；CoreML 对当前 server 模型结果不一致，因此固定使用已验证的 CPU 路径。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -105,8 +112,9 @@ struct DocumentRecognitionView: View {
                     if item.result != nil { Button("导出 \(model.exportFormat.rawValue)…") { model.export(item) } }
                 }
             }
-            TableColumn("页/块") { item in
-                Text(item.result == nil ? "—" : "\(item.pageCount) / \(item.blockCount)").monospacedDigit()
+            TableColumn(isOCR ? "页/行" : "页/块") { item in
+                let detailCount = isOCR ? item.lineCount : item.blockCount
+                Text(item.result == nil ? "—" : "\(item.pageCount) / \(detailCount)").monospacedDigit()
             }.width(70)
             TableColumn("耗时") { item in
                 Text(item.seconds.map { String(format: "%.2f s", $0) } ?? "—").monospacedDigit()

@@ -1,5 +1,13 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import PaddleOCRCoreML
+import UniformTypeIdentifiers
+
+public enum DocumentRecognitionMode: String, Sendable {
+    case structure
+    case ocr
+}
 
 public enum DocumentRecognitionError: LocalizedError {
     case modelsMissing
@@ -40,6 +48,7 @@ public struct RecognitionModelProgress: Sendable {
 }
 
 public struct DocumentRecognitionConfiguration: Sendable {
+    public var mode: DocumentRecognitionMode = .structure
     public var maxConcurrentDocuments = 2
     public var classifyOrientation = true
     public var unwarpDocument = false
@@ -48,6 +57,7 @@ public struct DocumentRecognitionConfiguration: Sendable {
     public var recognizeCharts = false
 
     public init(
+        mode: DocumentRecognitionMode = .structure,
         maxConcurrentDocuments: Int = 2,
         classifyOrientation: Bool = true,
         unwarpDocument: Bool = false,
@@ -55,6 +65,7 @@ public struct DocumentRecognitionConfiguration: Sendable {
         recognizeFormulae: Bool = true,
         recognizeCharts: Bool = false
     ) {
+        self.mode = mode
         self.maxConcurrentDocuments = maxConcurrentDocuments
         self.classifyOrientation = classifyOrientation
         self.unwarpDocument = unwarpDocument
@@ -97,7 +108,8 @@ public actor DocumentRecognitionService {
 
     public let modelRoot: URL
     private var engine: PPStructureV3Engine?
-    private var validatedModelsReady: Bool?
+    private var ocrEngine: OCRRecognizer?
+    private var validatedModes: Set<DocumentRecognitionMode> = []
 
     public init(modelRoot: URL = DocumentRecognitionService.defaultModelRoot()) {
         self.modelRoot = modelRoot
@@ -114,29 +126,49 @@ public actor DocumentRecognitionService {
     }
 
     public func modelsReady() -> Bool {
-        if let validatedModelsReady { return validatedModelsReady }
-        let ready = Self.modelComponents.allSatisfy { component in
+        modelsReady(mode: .structure)
+    }
+
+    public func modelsReady(mode: DocumentRecognitionMode) -> Bool {
+        if validatedModes.contains(mode) { return true }
+        let ready = Self.modelComponents(for: mode).allSatisfy { component in
             let directory = modelRoot.appendingPathComponent(component.artifact.name, isDirectory: true)
             let model = directory.appendingPathComponent("inference.onnx")
             let config = directory.appendingPathComponent("inference.yml")
             return (try? PaddleOCRModelStore.verify(file: model, sha256: component.artifact.modelSHA256)) == true
                 && (try? PaddleOCRModelStore.verify(file: config, sha256: component.artifact.configurationSHA256)) == true
         }
-        validatedModelsReady = ready
+        if ready { validatedModes.insert(mode) }
         return ready
     }
 
     public func downloadModels(
         progress: @Sendable (RecognitionModelProgress) -> Void = { _ in }
     ) async throws {
+        try await downloadModels(mode: .structure, progress: progress)
+    }
+
+    public func downloadModels(
+        mode: DocumentRecognitionMode,
+        progress: @Sendable (RecognitionModelProgress) -> Void = { _ in }
+    ) async throws {
         engine = nil
-        validatedModelsReady = nil
-        for (index, component) in Self.modelComponents.enumerated() {
-            progress(.init(completed: index, total: Self.modelComponents.count, name: component.title))
+        ocrEngine = nil
+        validatedModes.removeAll()
+        let components = Self.modelComponents(for: mode)
+        for (index, component) in components.enumerated() {
+            progress(.init(completed: index, total: components.count, name: component.title))
             _ = try await PaddleOCRModelStore.download(component.artifact, into: modelRoot)
         }
-        validatedModelsReady = true
-        progress(.init(completed: Self.modelComponents.count, total: Self.modelComponents.count, name: "模型校验完成"))
+        validatedModes.insert(mode)
+        progress(.init(completed: components.count, total: components.count, name: "模型校验完成"))
+    }
+
+    public nonisolated static func modelComponents(for mode: DocumentRecognitionMode) -> [RecognitionModelComponent] {
+        switch mode {
+        case .structure: modelComponents
+        case .ocr: Array(modelComponents.prefix(2))
+        }
     }
 
     public func analyze(
@@ -147,7 +179,10 @@ public actor DocumentRecognitionService {
         if let unsupported = documents.first(where: { !Self.accepts($0) }) {
             throw DocumentRecognitionError.unsupportedInput(unsupported.lastPathComponent)
         }
-        guard modelsReady() else { throw DocumentRecognitionError.modelsMissing }
+        guard modelsReady(mode: configuration.mode) else { throw DocumentRecognitionError.modelsMissing }
+        if configuration.mode == .ocr {
+            return try analyzeOCR(documents: documents, configuration: configuration)
+        }
         let engine = try engine ?? makeEngine()
         self.engine = engine
         return try engine.analyzeBatch(
@@ -155,6 +190,159 @@ public actor DocumentRecognitionService {
             options: configuration.structureOptions,
             maxConcurrentDocuments: configuration.normalizedConcurrency
         )
+    }
+
+    private func analyzeOCR(
+        documents: [URL],
+        configuration: DocumentRecognitionConfiguration
+    ) throws -> StructureBatchResult {
+        let recognizer = try ocrEngine ?? makeOCREngine()
+        ocrEngine = recognizer
+        let batchStarted = ContinuousClock.now
+        var results: [StructureDocumentResult] = []
+        var itemSeconds: [Double] = []
+        for source in documents {
+            let started = ContinuousClock.now
+            results.append(try recognizeOCRDocument(source, recognizer: recognizer))
+            itemSeconds.append(Self.seconds(ContinuousClock.now - started))
+        }
+        let totalSeconds = Self.seconds(ContinuousClock.now - batchStarted)
+        let sorted = itemSeconds.sorted()
+        let metrics = StructureBatchMetrics(
+            documentCount: documents.count,
+            maxConcurrentDocuments: 1,
+            totalSeconds: totalSeconds,
+            throughputPerSecond: totalSeconds > 0 ? Double(documents.count) / totalSeconds : 0,
+            p50Seconds: Self.percentile(sorted, 0.50),
+            p95Seconds: Self.percentile(sorted, 0.95),
+            itemSeconds: itemSeconds
+        )
+        return StructureBatchResult(documents: results, metrics: metrics)
+    }
+
+    private func makeOCREngine() throws -> OCRRecognizer {
+        let detection = modelFiles(PaddleOCRModelCatalog.ocrV5ServerDetection)
+        let recognition = modelFiles(PaddleOCRModelCatalog.ocrV5ServerRecognition)
+        return try OCRRecognizer(
+            models: OCRModelConfiguration(
+                detectionModel: detection.model,
+                recognitionModel: recognition.model,
+                recognitionConfiguration: recognition.configuration
+            ),
+            executionProvider: .cpu
+        )
+    }
+
+    private func recognizeOCRDocument(_ source: URL, recognizer: OCRRecognizer) throws -> StructureDocumentResult {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FileNest-OCR-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        let images = try Self.pageImages(for: source, workspace: workspace)
+        let pages = try images.enumerated().map { index, page in
+            let result = try recognizer.recognize(imageAt: page.url)
+            let confidence = result.lines.isEmpty
+                ? 0
+                : result.lines.map(\.confidence).reduce(0, +) / Float(result.lines.count)
+            let block = StructureBlock(
+                type: .text,
+                label: "ocr_text",
+                bounds: Bounds(x1: 0, y1: 0, x2: Float(page.width), y2: Float(page.height)),
+                confidence: confidence,
+                content: result.text,
+                readingOrder: 0,
+                ocrLines: result.lines
+            )
+            return StructurePageResult(
+                pageIndex: index,
+                width: page.width,
+                height: page.height,
+                orientationDegrees: 0,
+                blocks: [block],
+                overallOCR: result
+            )
+        }
+        return StructureDocumentResult(source: source, pages: pages)
+    }
+
+    private struct OCRPageImage {
+        let url: URL
+        let width: Int
+        let height: Int
+    }
+
+    private nonisolated static func pageImages(for source: URL, workspace: URL) throws -> [OCRPageImage] {
+        guard source.pathExtension.lowercased() == "pdf" else {
+            guard let imageSource = CGImageSourceCreateWithURL(source as CFURL, nil),
+                  let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any],
+                  let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+                  let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue else {
+                throw DocumentRecognitionError.unsupportedInput(source.lastPathComponent)
+            }
+            return [.init(url: source, width: width, height: height)]
+        }
+        guard let document = CGPDFDocument(source as CFURL) else {
+            throw DocumentRecognitionError.unsupportedInput(source.lastPathComponent)
+        }
+        guard document.numberOfPages > 0 else { return [] }
+        return try (1 ... document.numberOfPages).map { pageNumber in
+            guard let page = document.page(at: pageNumber) else {
+                throw DocumentRecognitionError.unsupportedInput(source.lastPathComponent)
+            }
+            let box = page.getBoxRect(.mediaBox)
+            let scale = min(3, max(1.5, 2400 / max(box.width, box.height)))
+            let width = max(1, Int((box.width * scale).rounded()))
+            let height = max(1, Int((box.height * scale).rounded()))
+            guard let context = CGContext(
+                data: nil,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { throw DocumentRecognitionError.unsupportedInput(source.lastPathComponent) }
+            context.setFillColor(CGColor(gray: 1, alpha: 1))
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            context.concatenate(page.getDrawingTransform(
+                .mediaBox,
+                rect: CGRect(x: 0, y: 0, width: width, height: height),
+                rotate: 0,
+                preserveAspectRatio: true
+            ))
+            context.drawPDFPage(page)
+            guard let image = context.makeImage() else {
+                throw DocumentRecognitionError.unsupportedInput(source.lastPathComponent)
+            }
+            let output = workspace.appendingPathComponent("page-\(pageNumber).png")
+            guard let destination = CGImageDestinationCreateWithURL(output as CFURL, UTType.png.identifier as CFString, 1, nil) else {
+                throw DocumentRecognitionError.unsupportedInput(source.lastPathComponent)
+            }
+            CGImageDestinationAddImage(destination, image, nil)
+            guard CGImageDestinationFinalize(destination) else {
+                throw DocumentRecognitionError.unsupportedInput(source.lastPathComponent)
+            }
+            return .init(url: output, width: width, height: height)
+        }
+    }
+
+    private func modelFiles(_ artifact: PaddleOCRModelArtifact) -> (model: URL, configuration: URL) {
+        let directory = modelRoot.appendingPathComponent(artifact.name, isDirectory: true)
+        return (
+            directory.appendingPathComponent("inference.onnx"),
+            directory.appendingPathComponent("inference.yml")
+        )
+    }
+
+    private nonisolated static func seconds(_ duration: Duration) -> Double {
+        let components = duration.components
+        return Double(components.seconds) + Double(components.attoseconds) / 1e18
+    }
+
+    private nonisolated static func percentile(_ values: [Double], _ percentile: Double) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let index = max(0, min(values.count - 1, Int(ceil(percentile * Double(values.count))) - 1))
+        return values[index]
     }
 
     private func makeEngine() throws -> PPStructureV3Engine {
