@@ -27,6 +27,7 @@
 - 图片转 PDF；按自定义关键字排序合并 PDF/图片；按关键字拆分文字型 PDF
 - 用正则批量提取 PDF 文本到 XLSX，并按指定 Excel 列分组、去重、合并
 - 独立“文字识别（OCR）”入口只加载 PP-OCRv5 检测与识别两个模型，跳过版面、阅读顺序、表格、公式和图表分析
+- 独立“Apple Vision OCR”入口固定使用系统 `accurate`、简体中文 + 英文与语言校正，无需下载模型
 - 原生 PP-StructureV3 批量识别图片/PDF：PP-OCRv5、版面、阅读顺序、方向/矫正及有线/无线表格；导出 JSON、Markdown、HTML、DOCX、XLSX
 - 共享模型会话与批量并发（默认 2）；界面显示总耗时、吞吐、P50/P95，模型下载后逐文件处理可离线完成
 - 目录清单可包含目录、父目录、实际文件类型、字节数、创建时间和修改时间
@@ -75,7 +76,9 @@ dist/cli/filenest-cli models status
 dist/cli/filenest-cli models download
 dist/cli/filenest-cli models download --ocr-only --model-size mobile
 dist/cli/filenest-cli recognize --ocr-only --input ./scans --output ./ocr-results \
-  --format markdown --model-size mobile --provider cpu
+  --format markdown --model-size mobile --provider coreml
+dist/cli/filenest-cli recognize --engine vision --input ./scans --output ./vision-results \
+  --format markdown
 dist/cli/filenest-cli recognize --input ./documents --output ./results \
   --format markdown --jobs 2
 ```
@@ -103,17 +106,21 @@ command = "/Applications/文件台.app/Contents/MacOS/filenest-mcp"
 
 也可把命令替换为发行包中 `dist/mcp/filenest-mcp` 的绝对路径；必须连同同目录的 `Frameworks` 一起移动。工具参数通过 MCP 的 `inputSchema` 自描述，可先调用 `tools/list` 查看完整清单。
 
-支持 `json|markdown|html|docx|xlsx`；可重复传入 `--input`。`--ocr-only` 仅运行 PP-OCRv5 检测与文字识别；用 `--model-size mobile|server` 切换约 21 MiB 的 Mobile 小模型或约 165 MiB 的 Server 大模型。Server 可配 `--provider coreml|cpu`，默认 CoreML；Mobile 固定使用 CPU，因为 Mobile + CoreML 在结果一致性校验中出现严重乱码，CLI/MCP 和核心服务都会拒绝该组合。MCP 对应传 `mode="ocr"`、`modelSize="mobile"|"server"` 与 `provider="coreml"|"cpu"`。
+支持 `json|markdown|html|docx|xlsx`；可重复传入 `--input`。`--engine structure|paddle|vision` 分别选择 PP-StructureV3、PP-OCRv5 或 Apple Vision；`--ocr-only` 保留为 `--engine paddle` 的兼容别名。Paddle 可用 `--model-size mobile|server` 切换约 21 MiB 的 Mobile 小模型或约 165 MiB 的 Server 大模型，两者都可配 `--provider coreml|cpu`，默认 CoreML。Mobile 的 CoreML 自动使用精确兼容策略，避免动态 CoreML 子图乱码。Vision 固定使用 `accurate`、`zh-Hans + en-US` 与系统语言校正，不下载模型。MCP 对应传 `mode="structure"|"ocr"|"vision"`。
 
-同一张 1656×1968 中文截图的冷进程实测如下；耗时取核心识别计时，RSS 取 `/usr/bin/time -l` 峰值：
+同一张 1656×1968 中文截图的稳定实测如下；耗时取核心识别计时，RSS 取 `/usr/bin/time -l` 峰值：
 
 | 模型 | 推理 | 耗时 | 峰值 RSS | 结果 |
 | --- | --- | ---: | ---: | --- |
-| Mobile | CPU | 3.12 秒 | 420 MiB | 完整 31 行，速度/内存优先 |
+| Mobile | CPU | 3.98 秒 | 385 MiB | 完整 31 行、948 字符 |
+| Mobile | CoreML 精确兼容 | **3.47 秒** | 406 MiB | 与 CPU 字节一致 |
 | Server | CoreML | 3.39 秒 | 3.21 GiB | 完整 31 行，与 CPU 仅 2 处项目符号差异 |
 | Server | CPU | 8.62 秒 | 1.38 GiB | 完整 31 行，精度基准 |
+| Apple Vision | accurate | **0.77 秒** | 约 237 MiB | 29 个自然行、1018 字符，内容更完整 |
 
-复用同一模型会话连续处理 5 张图时，Mobile + CPU 为 15.62 秒（0.320 张/秒、648 MiB），Server + CoreML 为 15.18 秒（0.329 张/秒、3.71 GiB），Server + CPU 为 43.35 秒（0.115 张/秒、2.11 GiB）。因此 Mobile + CPU 的批量吞吐接近 Server + CoreML，但峰值内存约为后者的六分之一。
+复用同一会话连续处理 5 张图时，Apple Vision accurate 发行版为 **3.22 秒（1.55 张/秒、约 237 MiB）**，5 份识别文本 SHA-256 完全一致；Mobile + CPU 为 16.24 秒（639 MiB），Mobile + CoreML 精确兼容为 16.15 秒（643 MiB），Server + CoreML 为 15.18 秒（3.71 GiB），Server + CPU 为 43.35 秒（2.11 GiB）。因此纯文字提取优先选 Vision，要求与 Paddle 模型语义一致时选 PP-OCRv5，需要版面/表格结构时选 PP-StructureV3。
+
+新构建的发行二进制第一次调用 Vision accurate 时，本机首张实测 30.13 秒（5 张合计 32.52 秒），用于 macOS 准备系统识别资源；该结果由系统缓存，后续启动和批量处理恢复到上表速度。表中采用准备完成后的稳定性能，避免把一次性系统初始化混入逐页 OCR 耗时。
 
 完整结构识别仍固定使用已验证的 Server + CPU 路径；`--jobs 2` 是 M 系列 Mac 的推荐平衡配置，`--jobs 4` 吞吐更高但峰值内存明显增加。
 
@@ -129,7 +136,7 @@ SEVENZIP_ENGINE_INTEGRATION=1 swift test
 ./scripts/build-app.sh
 ```
 
-架构：`SwiftUI / AppKit / filenest-cli / filenest-mcp → FileNestKit / FileNestOCRCore → PaddleOCRCoreML / ONNX Runtime / 7-Zip SDK`。
+架构：`SwiftUI / AppKit / filenest-cli / filenest-mcp → FileNestKit / FileNestOCRCore → Apple Vision / PaddleOCRCoreML / ONNX Runtime / 7-Zip SDK`。
 
 ## 隐私与安全
 

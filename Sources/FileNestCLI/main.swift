@@ -21,7 +21,7 @@ private struct Arguments {
 
     init(_ arguments: [String]) throws {
         var index = 0
-        let valueOptions: Set<String> = ["input", "output", "format", "jobs", "model-dir", "provider", "model-size", "arguments"]
+        let valueOptions: Set<String> = ["input", "output", "format", "jobs", "model-dir", "provider", "model-size", "engine", "arguments"]
         while index < arguments.count {
             let argument = arguments[index]
             if argument.hasPrefix("--") {
@@ -95,20 +95,20 @@ private struct FileNestCLI {
         let action = arguments.positionals.first ?? "status"
         switch action {
         case "status":
-            let mode: DocumentRecognitionMode = arguments.flags.contains("ocr-only") ? .ocr : .structure
+            let mode = try recognitionMode(arguments)
             let modelSize = try recognitionModelSize(arguments)
             let ready = await service.modelsReady(mode: mode, modelSize: modelSize)
             writeJSON([
                 "ok": true,
                 "ready": ready,
                 "mode": mode.rawValue,
-                "modelSize": mode == .ocr ? modelSize.rawValue : DocumentRecognitionModelSize.server.rawValue,
+                "modelSize": recognitionModelLabel(mode: mode, modelSize: modelSize),
                 "modelCount": DocumentRecognitionService.modelComponents(for: mode, modelSize: modelSize).count,
                 "modelDirectory": root.path,
                 "sdkVersion": DocumentRecognitionService.sdkVersion,
             ])
         case "download":
-            let mode: DocumentRecognitionMode = arguments.flags.contains("ocr-only") ? .ocr : .structure
+            let mode = try recognitionMode(arguments)
             let modelSize = try recognitionModelSize(arguments)
             try await service.downloadModels(mode: mode, modelSize: modelSize) { progress in
                 writeJSON([
@@ -121,7 +121,8 @@ private struct FileNestCLI {
             writeJSON([
                 "ok": true,
                 "ready": true,
-                "modelSize": mode == .ocr ? modelSize.rawValue : DocumentRecognitionModelSize.server.rawValue,
+                "mode": mode.rawValue,
+                "modelSize": recognitionModelLabel(mode: mode, modelSize: modelSize),
                 "modelDirectory": root.path,
             ])
         default:
@@ -146,7 +147,7 @@ private struct FileNestCLI {
 
         let output = fileURL(outputValue)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        let mode: DocumentRecognitionMode = arguments.flags.contains("ocr-only") ? .ocr : .structure
+        let mode = try recognitionMode(arguments)
         let modelSize = try recognitionModelSize(arguments)
         let provider = try recognitionProvider(arguments, modelSize: modelSize)
         let configuration = DocumentRecognitionConfiguration(
@@ -180,8 +181,8 @@ private struct FileNestCLI {
             "ok": true,
             "format": format.fileExtension,
             "mode": mode.rawValue,
-            "provider": mode == .ocr ? provider.rawValue : DocumentRecognitionProvider.cpu.rawValue,
-            "modelSize": mode == .ocr ? modelSize.rawValue : DocumentRecognitionModelSize.server.rawValue,
+            "provider": recognitionProviderLabel(mode: mode, provider: provider),
+            "modelSize": recognitionModelLabel(mode: mode, modelSize: modelSize),
             "documents": items,
             "metrics": [
                 "count": batch.metrics.documentCount,
@@ -241,15 +242,46 @@ private struct FileNestCLI {
         _ arguments: Arguments,
         modelSize: DocumentRecognitionModelSize
     ) throws -> DocumentRecognitionProvider {
-        let defaultProvider: DocumentRecognitionProvider = modelSize == .mobile ? .cpu : .coreML
+        let defaultProvider: DocumentRecognitionProvider = .coreML
         let value = (arguments.value("provider") ?? defaultProvider.rawValue).lowercased()
         guard let provider = DocumentRecognitionProvider(rawValue: value) else {
             throw CLIError.usage("--provider 仅支持 coreml 或 cpu")
         }
-        if modelSize == .mobile, provider == .coreML {
-            throw CLIError.usage("Mobile + CoreML 结果校验未通过；--model-size mobile 仅支持 --provider cpu")
-        }
         return provider
+    }
+
+    private static func recognitionMode(_ arguments: Arguments) throws -> DocumentRecognitionMode {
+        guard let value = arguments.value("engine")?.lowercased() else {
+            return arguments.flags.contains("ocr-only") ? .ocr : .structure
+        }
+        switch value {
+        case "structure": return .structure
+        case "paddle", "ocr": return .ocr
+        case "vision": return .vision
+        default: throw CLIError.usage("--engine 仅支持 structure、paddle 或 vision")
+        }
+    }
+
+    private static func recognitionProviderLabel(
+        mode: DocumentRecognitionMode,
+        provider: DocumentRecognitionProvider
+    ) -> String {
+        switch mode {
+        case .structure: DocumentRecognitionProvider.cpu.rawValue
+        case .ocr: provider.rawValue
+        case .vision: "vision-accurate"
+        }
+    }
+
+    private static func recognitionModelLabel(
+        mode: DocumentRecognitionMode,
+        modelSize: DocumentRecognitionModelSize
+    ) -> String {
+        switch mode {
+        case .structure: DocumentRecognitionModelSize.server.rawValue
+        case .ocr: modelSize.rawValue
+        case .vision: "system"
+        }
     }
 
     private static func recognitionModelSize(_ arguments: Arguments) throws -> DocumentRecognitionModelSize {
@@ -273,13 +305,14 @@ private struct FileNestCLI {
       filenest-cli version
       filenest-cli tools
       filenest-cli run TOOL --arguments '{"key":"value"}'
-      filenest-cli models status [--model-dir DIR] [--ocr-only] [--model-size mobile|server]
-      filenest-cli models download [--model-dir DIR] [--ocr-only] [--model-size mobile|server]
+      filenest-cli models status [--model-dir DIR] [--engine structure|paddle|vision]
+      filenest-cli models download [--model-dir DIR] [--engine structure|paddle|vision]
       filenest-cli recognize --input FILE_OR_DIR [--input FILE] --output DIR
           [--format json|markdown|html|docx|xlsx] [--jobs 1...4]
           [--unwarp] [--charts] [--no-orientation] [--no-tables] [--no-formula]
-          [--ocr-only] [--model-size mobile|server] [--provider coreml|cpu]
-          # 默认 Server + CoreML；Mobile 自动使用 CPU（不支持 Mobile + CoreML）
+          [--engine structure|paddle|vision] [--model-size mobile|server] [--provider coreml|cpu]
+      # --ocr-only 保留为 --engine paddle 的兼容别名；Vision 固定 accurate 且无需模型
+      # 默认 CoreML；Mobile 自动使用精确兼容模式，避免动态 CoreML 子图产生乱码
 
     stdout 只输出最终 JSON；下载进度与错误 JSON 输出到 stderr，适合 MCP/自动化调用。
     """

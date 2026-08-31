@@ -3,10 +3,12 @@ import Foundation
 import ImageIO
 import PaddleOCRCoreML
 import UniformTypeIdentifiers
+import Vision
 
 public enum DocumentRecognitionMode: String, Sendable {
     case structure
     case ocr
+    case vision
 }
 
 public enum DocumentRecognitionProvider: String, CaseIterable, Identifiable, Sendable {
@@ -22,9 +24,10 @@ public enum DocumentRecognitionProvider: String, CaseIterable, Identifiable, Sen
         }
     }
 
-    fileprivate var sdkProvider: PaddleOCRExecutionProvider {
+    func sdkProvider(for modelSize: DocumentRecognitionModelSize) -> PaddleOCRExecutionProvider {
         switch self {
-        case .coreML: .coreML
+        case .coreML:
+            modelSize == .mobile ? .coreMLStaticShapesOnly : .coreML
         case .cpu: .cpu
         }
     }
@@ -49,7 +52,6 @@ public enum DocumentRecognitionError: LocalizedError {
     case noDocuments
     case unsupportedInput(String)
     case resultMissing
-    case unsupportedOCRCombination
 
     public var errorDescription: String? {
         switch self {
@@ -57,7 +59,6 @@ public enum DocumentRecognitionError: LocalizedError {
         case .noDocuments: "请先选择图片或 PDF。"
         case .unsupportedInput(let name): "不支持的文档格式：\(name)"
         case .resultMissing: "没有可导出的识别结果。"
-        case .unsupportedOCRCombination: "PP-OCRv5 Mobile 与 CoreML 的结果校验未通过；小模型请使用 CPU 精确模式。"
         }
     }
 }
@@ -202,6 +203,7 @@ public actor DocumentRecognitionService {
         mode: DocumentRecognitionMode,
         modelSize: DocumentRecognitionModelSize
     ) -> Bool {
+        if mode == .vision { return true }
         let selection = ModelSelectionKey(mode: mode, modelSize: mode == .ocr ? modelSize : .server)
         if validatedSelections.contains(selection) { return true }
         let ready = Self.modelComponents(for: mode, modelSize: modelSize).allSatisfy { component in
@@ -233,6 +235,10 @@ public actor DocumentRecognitionService {
         modelSize: DocumentRecognitionModelSize,
         progress: @Sendable (RecognitionModelProgress) -> Void = { _ in }
     ) async throws {
+        if mode == .vision {
+            progress(.init(completed: 0, total: 0, name: "Apple Vision 系统引擎已就绪"))
+            return
+        }
         engine = nil
         ocrEngines.removeAll()
         validatedSelections.removeAll()
@@ -256,6 +262,7 @@ public actor DocumentRecognitionService {
         switch mode {
         case .structure: modelComponents
         case .ocr: ocrModelComponents(for: modelSize)
+        case .vision: []
         }
     }
 
@@ -278,11 +285,6 @@ public actor DocumentRecognitionService {
         configuration: DocumentRecognitionConfiguration
     ) throws -> StructureBatchResult {
         guard !documents.isEmpty else { throw DocumentRecognitionError.noDocuments }
-        if configuration.mode == .ocr,
-           configuration.ocrModelSize == .mobile,
-           configuration.ocrProvider == .coreML {
-            throw DocumentRecognitionError.unsupportedOCRCombination
-        }
         if let unsupported = documents.first(where: { !Self.accepts($0) }) {
             throw DocumentRecognitionError.unsupportedInput(unsupported.lastPathComponent)
         }
@@ -291,6 +293,9 @@ public actor DocumentRecognitionService {
         }
         if configuration.mode == .ocr {
             return try analyzeOCR(documents: documents, configuration: configuration)
+        }
+        if configuration.mode == .vision {
+            return try analyzeVision(documents: documents)
         }
         let engine = try engine ?? makeEngine()
         self.engine = engine
@@ -330,6 +335,29 @@ public actor DocumentRecognitionService {
         return StructureBatchResult(documents: results, metrics: metrics)
     }
 
+    private func analyzeVision(documents: [URL]) throws -> StructureBatchResult {
+        let batchStarted = ContinuousClock.now
+        var results: [StructureDocumentResult] = []
+        var itemSeconds: [Double] = []
+        for source in documents {
+            let started = ContinuousClock.now
+            results.append(try recognizeVisionDocument(source))
+            itemSeconds.append(Self.seconds(ContinuousClock.now - started))
+        }
+        let totalSeconds = Self.seconds(ContinuousClock.now - batchStarted)
+        let sorted = itemSeconds.sorted()
+        let metrics = StructureBatchMetrics(
+            documentCount: documents.count,
+            maxConcurrentDocuments: 1,
+            totalSeconds: totalSeconds,
+            throughputPerSecond: totalSeconds > 0 ? Double(documents.count) / totalSeconds : 0,
+            p50Seconds: Self.percentile(sorted, 0.50),
+            p95Seconds: Self.percentile(sorted, 0.95),
+            itemSeconds: itemSeconds
+        )
+        return StructureBatchResult(documents: results, metrics: metrics)
+    }
+
     private func makeOCREngine(
         provider: DocumentRecognitionProvider,
         modelSize: DocumentRecognitionModelSize
@@ -343,7 +371,7 @@ public actor DocumentRecognitionService {
                 recognitionModel: recognition.model,
                 recognitionConfiguration: recognition.configuration
             ),
-            executionProvider: provider.sdkProvider
+            executionProvider: provider.sdkProvider(for: modelSize)
         )
     }
 
@@ -371,6 +399,77 @@ public actor DocumentRecognitionService {
                 pageIndex: index,
                 width: page.width,
                 height: page.height,
+                orientationDegrees: 0,
+                blocks: [block],
+                overallOCR: result
+            )
+        }
+        return StructureDocumentResult(source: source, pages: pages)
+    }
+
+    private func recognizeVisionDocument(_ source: URL) throws -> StructureDocumentResult {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FileNest-Vision-OCR-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        let images = try Self.pageImages(for: source, workspace: workspace)
+        let pages = try images.enumerated().map { index, page in
+            guard let imageSource = CGImageSourceCreateWithURL(page.url as CFURL, nil) else {
+                throw DocumentRecognitionError.unsupportedInput(page.url.lastPathComponent)
+            }
+            let decodeOptions: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: max(page.width, page.height),
+            ]
+            guard let image = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, decodeOptions as CFDictionary) else {
+                throw DocumentRecognitionError.unsupportedInput(page.url.lastPathComponent)
+            }
+            let width = image.width
+            let height = image.height
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.recognitionLanguages = ["zh-Hans", "en-US"]
+            request.usesLanguageCorrection = true
+            // ImageIO has already normalized EXIF orientation before Vision sees the pixels.
+            try VNImageRequestHandler(cgImage: image).perform([request])
+            let observations = (request.results ?? []).sorted {
+                if abs($0.boundingBox.maxY - $1.boundingBox.maxY) > 0.01 {
+                    return $0.boundingBox.maxY > $1.boundingBox.maxY
+                }
+                return $0.boundingBox.minX < $1.boundingBox.minX
+            }
+            let lines = observations.compactMap { observation -> OCRLine? in
+                guard let candidate = observation.topCandidates(1).first else { return nil }
+                let bounds = observation.boundingBox
+                let x1 = Float(bounds.minX * Double(width))
+                let x2 = Float(bounds.maxX * Double(width))
+                let y1 = Float((1 - bounds.maxY) * Double(height))
+                let y2 = Float((1 - bounds.minY) * Double(height))
+                return OCRLine(
+                    box: [
+                        Point(x: x1, y: y1), Point(x: x2, y: y1),
+                        Point(x: x2, y: y2), Point(x: x1, y: y2),
+                    ],
+                    text: candidate.string,
+                    confidence: candidate.confidence
+                )
+            }
+            let result = OCRResult(lines: lines)
+            let confidence = lines.isEmpty ? 0 : lines.map(\.confidence).reduce(0, +) / Float(lines.count)
+            let block = StructureBlock(
+                type: .text,
+                label: "vision_ocr_text",
+                bounds: Bounds(x1: 0, y1: 0, x2: Float(width), y2: Float(height)),
+                confidence: confidence,
+                content: result.text,
+                readingOrder: 0,
+                ocrLines: lines
+            )
+            return StructurePageResult(
+                pageIndex: index,
+                width: width,
+                height: height,
                 orientationDegrees: 0,
                 blocks: [block],
                 overallOCR: result

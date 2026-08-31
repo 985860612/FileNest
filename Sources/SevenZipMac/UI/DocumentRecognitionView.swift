@@ -4,16 +4,19 @@ import SwiftUI
 struct DocumentRecognitionView: View {
     @ObservedObject var model: DocumentRecognitionWorkspaceModel
     @State private var dropTargeted = false
-    private var isOCR: Bool { model.mode == .ocr }
+    private var isOCR: Bool { model.mode != .structure }
+    private var isVision: Bool { model.mode == .vision }
 
     var body: some View {
         VStack(spacing: 0) {
             TaskHeader(
-                title: isOCR ? "文字识别（OCR）" : "文档识别",
-                subtitle: isOCR
-                    ? "原生 PP-OCRv5：只做文字检测与识别，不运行版面和表格模型"
-                    : "原生 PP-StructureV3：OCR、版面、阅读顺序与表格结构",
-                systemImage: isOCR ? "text.viewfinder" : "doc.text.magnifyingglass",
+                title: isVision ? "Apple Vision 文字识别" : (isOCR ? "文字识别（OCR）" : "文档识别"),
+                subtitle: isVision
+                    ? "macOS 系统原生 accurate：中英文文字识别，无需下载模型"
+                    : (isOCR
+                        ? "原生 PP-OCRv5：只做文字检测与识别，不运行版面和表格模型"
+                        : "原生 PP-StructureV3：OCR、版面、阅读顺序与表格结构"),
+                systemImage: isVision ? "viewfinder.circle" : (isOCR ? "text.viewfinder" : "doc.text.magnifyingglass"),
                 tint: FileNestTheme.teal
             )
             Divider()
@@ -38,13 +41,15 @@ struct DocumentRecognitionView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Label(
-                    model.modelsReady ? "模型已就绪" : "需要下载模型",
-                    systemImage: model.modelsReady ? "checkmark.circle.fill" : "arrow.down.circle"
+                    isVision ? "系统引擎已就绪" : (model.modelsReady ? "模型已就绪" : "需要下载模型"),
+                    systemImage: (isVision || model.modelsReady) ? "checkmark.circle.fill" : "arrow.down.circle"
                 )
-                .foregroundStyle(model.modelsReady ? FileNestTheme.green : FileNestTheme.orange)
-                Text(isOCR
-                    ? "SDK \(DocumentRecognitionService.sdkVersion) · \(model.ocrModelSize.title) · \(model.ocrProvider.title)"
-                    : "SDK \(DocumentRecognitionService.sdkVersion) · CPU 精确模式")
+                .foregroundStyle((isVision || model.modelsReady) ? FileNestTheme.green : FileNestTheme.orange)
+                Text(isVision
+                    ? "Apple Vision · accurate · 简体中文 + 英文"
+                    : (isOCR
+                        ? "SDK \(DocumentRecognitionService.sdkVersion) · \(model.ocrModelSize.title) · \(model.ocrProvider.title)"
+                        : "SDK \(DocumentRecognitionService.sdkVersion) · CPU 精确模式"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -52,11 +57,13 @@ struct DocumentRecognitionView: View {
                     ProgressView().controlSize(.small)
                     Text(model.modelProgress).font(.caption).monospacedDigit()
                 }
-                Button(model.modelsReady ? "重新校验模型" : "下载模型", action: model.downloadModels)
-                    .disabled(model.isDownloading || model.isWorking)
+                if !isVision {
+                    Button(model.modelsReady ? "重新校验模型" : "下载模型", action: model.downloadModels)
+                        .disabled(model.isDownloading || model.isWorking)
+                }
             }
             HStack(spacing: 16) {
-                if isOCR {
+                if model.mode == .ocr {
                     Picker("模型", selection: $model.ocrModelSize) {
                         ForEach(DocumentRecognitionModelSize.allCases) { size in
                             Text(size.title).tag(size)
@@ -70,8 +77,8 @@ struct DocumentRecognitionView: View {
                         }
                     }
                     .frame(width: 180)
-                    .disabled(model.isWorking || model.ocrModelSize == .mobile)
-                } else {
+                    .disabled(model.isWorking)
+                } else if model.mode == .structure {
                     Stepper("并发 \(model.maxConcurrentDocuments)", value: $model.maxConcurrentDocuments, in: 1...4)
                         .frame(width: 120)
                     Toggle("方向校正", isOn: $model.classifyOrientation).toggleStyle(.checkbox)
@@ -85,13 +92,15 @@ struct DocumentRecognitionView: View {
                 .frame(width: 150)
                 Button("批量导出…", action: model.exportAll)
                     .disabled(model.isWorking || !model.items.contains { $0.result != nil })
-                Button(isOCR ? "开始 OCR" : "开始识别", action: model.recognize)
+                Button(isVision ? "开始 Vision OCR" : (isOCR ? "开始 OCR" : "开始识别"), action: model.recognize)
                     .buttonStyle(.borderedProminent)
                     .disabled(model.isWorking || model.isDownloading || !model.modelsReady || model.items.isEmpty)
             }
-            Text(isOCR
-                ? "小模型固定使用已验证的 CPU 路径，约 420 MiB，适合批量通用 OCR；大模型精度更高，可选 CoreML 快速或 CPU 精确。"
-                : "默认并发 2 是 M 系列 Mac 的内存/吞吐平衡点；CoreML 对当前 server 模型结果不一致，因此固定使用已验证的 CPU 路径。")
+            Text(isVision
+                ? "固定使用 Vision accurate、zh-Hans + en-US 和系统语言校正；适合快速纯文字提取，不运行版面、表格与阅读顺序模型。"
+                : (isOCR
+                    ? "小模型的 CoreML 使用精确兼容模式：只执行已验证的静态子图，其余自动回退 CPU，避免动态模型产生乱码；大模型使用完整 CoreML 加速。"
+                    : "默认并发 2 是 M 系列 Mac 的内存/吞吐平衡点；CoreML 对当前 server 模型结果不一致，因此固定使用已验证的 CPU 路径。"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -50,7 +50,6 @@ final class DocumentRecognitionWorkspaceModel: ObservableObject {
     @Published var ocrModelSize: DocumentRecognitionModelSize = .server {
         didSet {
             guard oldValue != ocrModelSize, mode == .ocr else { return }
-            if ocrModelSize == .mobile { ocrProvider = .cpu }
             refreshModelStatus()
         }
     }
@@ -66,11 +65,13 @@ final class DocumentRecognitionWorkspaceModel: ObservableObject {
     ) {
         self.mode = mode
         self.service = service
-        if mode == .ocr {
+        if mode == .ocr || mode == .vision {
             maxConcurrentDocuments = 1
             classifyOrientation = false
             recognizeTables = false
-            statusMessage = "选择图片或 PDF，首次使用只需下载 2 个 OCR 模型"
+            statusMessage = mode == .vision
+                ? "Apple Vision accurate 已就绪，请选择图片或 PDF"
+                : "选择图片或 PDF，首次使用只需下载 2 个 OCR 模型"
         }
         refreshModelStatus()
     }
@@ -79,7 +80,11 @@ final class DocumentRecognitionWorkspaceModel: ObservableObject {
         modelsReady = false
         Task {
             modelsReady = await service.modelsReady(mode: mode, modelSize: ocrModelSize)
-            if modelsReady, items.isEmpty { statusMessage = "模型已就绪，请选择图片或 PDF" }
+            if modelsReady, items.isEmpty {
+                statusMessage = mode == .vision
+                    ? "Apple Vision accurate 已就绪，请选择图片或 PDF"
+                    : "模型已就绪，请选择图片或 PDF"
+            }
             if !modelsReady, mode == .ocr {
                 statusMessage = "(ocrModelSize.title)尚未下载，请先下载模型"
             }
@@ -112,11 +117,18 @@ final class DocumentRecognitionWorkspaceModel: ObservableObject {
         guard !isWorking else { return }
         items = []
         metrics = nil
-        statusMessage = modelsReady ? "模型已就绪，请选择图片或 PDF" : "首次使用请下载识别模型"
+        statusMessage = mode == .vision
+            ? "Apple Vision accurate 已就绪，请选择图片或 PDF"
+            : (modelsReady ? "模型已就绪，请选择图片或 PDF" : "首次使用请下载识别模型")
     }
 
     func downloadModels() {
         guard !isDownloading else { return }
+        guard mode != .vision else {
+            modelsReady = true
+            statusMessage = "Apple Vision accurate 使用 macOS 系统引擎，无需下载模型"
+            return
+        }
         isDownloading = true
         errorMessage = nil
         statusMessage = mode == .ocr ? "正在下载并校验 PP-OCRv5 模型…" : "正在下载并校验 PP-StructureV3 模型…"
@@ -146,9 +158,11 @@ final class DocumentRecognitionWorkspaceModel: ObservableObject {
         errorMessage = nil
         metrics = nil
         for index in items.indices { items[index].state = .processing; items[index].result = nil; items[index].seconds = nil }
-        statusMessage = mode == .ocr
-            ? "正在进行纯文字 OCR：\(items.count) 个文档…"
-            : "正在批量识别 \(items.count) 个文档…"
+        switch mode {
+        case .ocr: statusMessage = "正在进行 PP-OCRv5 文字识别：\(items.count) 个文档…"
+        case .vision: statusMessage = "正在使用 Apple Vision accurate 识别：\(items.count) 个文档…"
+        case .structure: statusMessage = "正在批量识别 \(items.count) 个文档…"
+        }
         let documents = items.map(\.source)
         let configuration = DocumentRecognitionConfiguration(
             mode: mode,

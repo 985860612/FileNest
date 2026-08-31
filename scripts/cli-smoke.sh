@@ -11,14 +11,14 @@ fi
 
 VERSION=$($CLI version)
 case "$VERSION" in
-  *'"ok":true'*'"sdkVersion":"0.3.1"'*) ;;
+  *'"ok":true'*'"sdkVersion":"0.3.3"'*) ;;
   *) echo "Unexpected version response: $VERSION" >&2; exit 1 ;;
 esac
 
 HELP=$($CLI)
 case "$HELP" in
-  *'--ocr-only'*'--model-size mobile|server'*'--provider coreml|cpu'*) ;;
-  *) echo "OCR model-size/provider options missing from CLI help" >&2; exit 1 ;;
+  *'--engine structure|paddle|vision'*'--model-size mobile|server'*'--provider coreml|cpu'*'--ocr-only'*) ;;
+  *) echo "OCR engine/model-size/provider options missing from CLI help" >&2; exit 1 ;;
 esac
 
 MODEL_DIR=$(mktemp -d "${TMPDIR:-/tmp}/filenest-cli-models.XXXXXX")
@@ -39,6 +39,12 @@ MOBILE_OCR_STATUS=$($CLI models status --ocr-only --model-size mobile --model-di
 case "$MOBILE_OCR_STATUS" in
   *'"mode":"ocr"'*'"modelCount":2'*'"modelSize":"mobile"'*'"ok":true'*'"ready":false'*) ;;
   *) echo "Unexpected Mobile OCR model status response: $MOBILE_OCR_STATUS" >&2; exit 1 ;;
+esac
+
+VISION_STATUS=$($CLI models status --engine vision --model-dir "$MODEL_DIR")
+case "$VISION_STATUS" in
+  *'"mode":"vision"'*'"modelCount":0'*'"modelSize":"system"'*'"ok":true'*'"ready":true'*) ;;
+  *) echo "Unexpected Apple Vision status response: $VISION_STATUS" >&2; exit 1 ;;
 esac
 
 TOOLS=$($CLI tools)
