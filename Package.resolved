@@ -1,13 +1,13 @@
 {
-  "originHash" : "60e83a192c81cdf95edeb58f9ab9b5be28257d50e99cdf618550cd34e2b00544",
+  "originHash" : "ad3a7767b587b0bc7487292a7ec7a15d8aaeae83187d5883859bdccdf5cd73c0",
   "pins" : [
     {
       "identity" : "paddleocrcoreml",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/985860612/PaddleOCRCoreML.git",
       "state" : {
-        "revision" : "306d0fe50c7537e2cc810b2c2a6148a8d6581f31",
-        "version" : "0.3.1"
+        "revision" : "0db851c3e683d0fce2673f7ca792f7bfa04dd28d",
+        "version" : "0.3.3"
       }
     }
   ],
