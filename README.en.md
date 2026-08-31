@@ -106,6 +106,32 @@ command = "/Applications/文件台.app/Contents/MacOS/filenest-mcp"
 
 The command may instead point at the absolute path to `dist/mcp/filenest-mcp`; keep its sibling `Frameworks` directory with it. Call `tools/list` for complete self-describing input schemas.
 
+### Import the FileNest Skill (optional)
+
+The repository includes [`skills/filenest/SKILL.md`](skills/filenest/SKILL.md), which guides Claude and Codex to the appropriate FileNest MCP tool and distinguishes Apple Vision, PP-OCRv5, and PP-StructureV3. The Skill contains invocation guidance only; configure `filenest-mcp` above before using it.
+
+Run the following commands from the repository root. Claude owns the installed source, while Codex uses a symlink to that same copy:
+
+```bash
+set -euo pipefail
+mkdir -p "$HOME/.claude/skills" "$HOME/.codex/skills"
+test ! -e "$HOME/.claude/skills/filenest" && test ! -L "$HOME/.claude/skills/filenest"
+test ! -e "$HOME/.codex/skills/filenest" && test ! -L "$HOME/.codex/skills/filenest"
+cp -R "$(pwd)/skills/filenest" "$HOME/.claude/skills/filenest"
+ln -s "$HOME/.claude/skills/filenest" "$HOME/.codex/skills/filenest"
+```
+
+If either destination already exists, inspect its contents and `realpath` first instead of overwriting it. Verify the import with:
+
+```bash
+test -f "$HOME/.claude/skills/filenest/SKILL.md"
+test -L "$HOME/.codex/skills/filenest"
+test "$(realpath "$HOME/.claude/skills/filenest")" = \
+  "$(realpath "$HOME/.codex/skills/filenest")"
+```
+
+Restart Claude or Codex, then ask it to use FileNest for a local task or invoke `$filenest` explicitly. For upgrades, compare the repository copy with the installed Claude source before replacing it; the Codex symlink does not need to be recreated.
+
 Formats are `json|markdown|html|docx|xlsx`, and `--input` may be repeated. Select PP-StructureV3, PP-OCRv5, or Apple Vision with `--engine structure|paddle|vision`; `--ocr-only` remains an alias for Paddle. The 21 MiB Mobile and 165 MiB Server Paddle pairs support `--provider coreml|cpu`. Mobile CoreML uses the verified static-shape compatibility path to prevent corrupted dynamic-subgraph output. Vision is fixed to `accurate`, `zh-Hans + en-US`, and language correction, with no model download. MCP accepts `mode="structure"|"ocr"|"vision"`.
 
 Steady-state results on the same 1656×1968 Chinese screenshot are below. Latency is the core recognition timer and peak RSS comes from `/usr/bin/time -l`.

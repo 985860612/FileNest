@@ -106,6 +106,32 @@ command = "/Applications/文件台.app/Contents/MacOS/filenest-mcp"
 
 也可把命令替换为发行包中 `dist/mcp/filenest-mcp` 的绝对路径；必须连同同目录的 `Frameworks` 一起移动。工具参数通过 MCP 的 `inputSchema` 自描述，可先调用 `tools/list` 查看完整清单。
 
+### 导入 FileNest Skill（可选）
+
+仓库内的 [`skills/filenest/SKILL.md`](skills/filenest/SKILL.md) 会指导 Claude/Codex 根据任务选择正确的 FileNest MCP 工具，并区分 Apple Vision、PP-OCRv5 与 PP-StructureV3。Skill 只提供调用规则，使用前仍需按上文配置 `filenest-mcp`。
+
+在仓库根目录执行以下命令，将 Skill 导入 Claude，并让 Codex 复用同一份真源：
+
+```bash
+set -euo pipefail
+mkdir -p "$HOME/.claude/skills" "$HOME/.codex/skills"
+test ! -e "$HOME/.claude/skills/filenest" && test ! -L "$HOME/.claude/skills/filenest"
+test ! -e "$HOME/.codex/skills/filenest" && test ! -L "$HOME/.codex/skills/filenest"
+cp -R "$(pwd)/skills/filenest" "$HOME/.claude/skills/filenest"
+ln -s "$HOME/.claude/skills/filenest" "$HOME/.codex/skills/filenest"
+```
+
+如果目标路径已存在，先检查内容和 `realpath`，不要直接覆盖。导入后验证：
+
+```bash
+test -f "$HOME/.claude/skills/filenest/SKILL.md"
+test -L "$HOME/.codex/skills/filenest"
+test "$(realpath "$HOME/.claude/skills/filenest")" = \
+  "$(realpath "$HOME/.codex/skills/filenest")"
+```
+
+重启 Claude/Codex 后可直接说“用 FileNest 压缩这个目录”，或显式调用 `$filenest`。升级 Skill 时先对比仓库版本与已安装版本，再替换 Claude 真源；Codex 软链接无需重复创建。
+
 支持 `json|markdown|html|docx|xlsx`；可重复传入 `--input`。`--engine structure|paddle|vision` 分别选择 PP-StructureV3、PP-OCRv5 或 Apple Vision；`--ocr-only` 保留为 `--engine paddle` 的兼容别名。Paddle 可用 `--model-size mobile|server` 切换约 21 MiB 的 Mobile 小模型或约 165 MiB 的 Server 大模型，两者都可配 `--provider coreml|cpu`，默认 CoreML。Mobile 的 CoreML 自动使用精确兼容策略，避免动态 CoreML 子图乱码。Vision 固定使用 `accurate`、`zh-Hans + en-US` 与系统语言校正，不下载模型。MCP 对应传 `mode="structure"|"ocr"|"vision"`。
 
 同一张 1656×1968 中文截图的稳定实测如下；耗时取核心识别计时，RSS 取 `/usr/bin/time -l` 峰值：
