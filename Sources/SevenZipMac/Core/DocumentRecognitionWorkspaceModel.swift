@@ -46,6 +46,14 @@ final class DocumentRecognitionWorkspaceModel: ObservableObject {
     @Published var classifyOrientation = true
     @Published var unwarpDocument = false
     @Published var recognizeTables = true
+    @Published var ocrProvider: DocumentRecognitionProvider = .coreML
+    @Published var ocrModelSize: DocumentRecognitionModelSize = .server {
+        didSet {
+            guard oldValue != ocrModelSize, mode == .ocr else { return }
+            if ocrModelSize == .mobile { ocrProvider = .cpu }
+            refreshModelStatus()
+        }
+    }
     @Published var exportFormat: DocumentExportFormat = .markdown
     @Published var metrics: StructureBatchMetrics?
 
@@ -68,9 +76,13 @@ final class DocumentRecognitionWorkspaceModel: ObservableObject {
     }
 
     func refreshModelStatus() {
+        modelsReady = false
         Task {
-            modelsReady = await service.modelsReady(mode: mode)
+            modelsReady = await service.modelsReady(mode: mode, modelSize: ocrModelSize)
             if modelsReady, items.isEmpty { statusMessage = "模型已就绪，请选择图片或 PDF" }
+            if !modelsReady, mode == .ocr {
+                statusMessage = "(ocrModelSize.title)尚未下载，请先下载模型"
+            }
         }
     }
 
@@ -110,7 +122,7 @@ final class DocumentRecognitionWorkspaceModel: ObservableObject {
         statusMessage = mode == .ocr ? "正在下载并校验 PP-OCRv5 模型…" : "正在下载并校验 PP-StructureV3 模型…"
         Task {
             do {
-                try await service.downloadModels(mode: mode) { progress in
+                try await service.downloadModels(mode: mode, modelSize: ocrModelSize) { progress in
                     Task { @MainActor in
                         self.modelProgress = "\(progress.completed)/\(progress.total) · \(progress.name)"
                     }
@@ -140,6 +152,8 @@ final class DocumentRecognitionWorkspaceModel: ObservableObject {
         let documents = items.map(\.source)
         let configuration = DocumentRecognitionConfiguration(
             mode: mode,
+            ocrProvider: ocrProvider,
+            ocrModelSize: ocrModelSize,
             maxConcurrentDocuments: maxConcurrentDocuments,
             classifyOrientation: classifyOrientation,
             unwarpDocument: unwarpDocument,

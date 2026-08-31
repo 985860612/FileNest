@@ -21,7 +21,7 @@ private struct Arguments {
 
     init(_ arguments: [String]) throws {
         var index = 0
-        let valueOptions: Set<String> = ["input", "output", "format", "jobs", "model-dir", "arguments"]
+        let valueOptions: Set<String> = ["input", "output", "format", "jobs", "model-dir", "provider", "model-size", "arguments"]
         while index < arguments.count {
             let argument = arguments[index]
             if argument.hasPrefix("--") {
@@ -96,18 +96,21 @@ private struct FileNestCLI {
         switch action {
         case "status":
             let mode: DocumentRecognitionMode = arguments.flags.contains("ocr-only") ? .ocr : .structure
-            let ready = await service.modelsReady(mode: mode)
+            let modelSize = try recognitionModelSize(arguments)
+            let ready = await service.modelsReady(mode: mode, modelSize: modelSize)
             writeJSON([
                 "ok": true,
                 "ready": ready,
                 "mode": mode.rawValue,
-                "modelCount": DocumentRecognitionService.modelComponents(for: mode).count,
+                "modelSize": mode == .ocr ? modelSize.rawValue : DocumentRecognitionModelSize.server.rawValue,
+                "modelCount": DocumentRecognitionService.modelComponents(for: mode, modelSize: modelSize).count,
                 "modelDirectory": root.path,
                 "sdkVersion": DocumentRecognitionService.sdkVersion,
             ])
         case "download":
             let mode: DocumentRecognitionMode = arguments.flags.contains("ocr-only") ? .ocr : .structure
-            try await service.downloadModels(mode: mode) { progress in
+            let modelSize = try recognitionModelSize(arguments)
+            try await service.downloadModels(mode: mode, modelSize: modelSize) { progress in
                 writeJSON([
                     "event": "model-progress",
                     "completed": progress.completed,
@@ -115,7 +118,12 @@ private struct FileNestCLI {
                     "name": progress.name,
                 ], to: .standardError)
             }
-            writeJSON(["ok": true, "ready": true, "modelDirectory": root.path])
+            writeJSON([
+                "ok": true,
+                "ready": true,
+                "modelSize": mode == .ocr ? modelSize.rawValue : DocumentRecognitionModelSize.server.rawValue,
+                "modelDirectory": root.path,
+            ])
         default:
             throw CLIError.usage("models 仅支持 status 或 download")
         }
@@ -138,8 +146,13 @@ private struct FileNestCLI {
 
         let output = fileURL(outputValue)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let mode: DocumentRecognitionMode = arguments.flags.contains("ocr-only") ? .ocr : .structure
+        let modelSize = try recognitionModelSize(arguments)
+        let provider = try recognitionProvider(arguments, modelSize: modelSize)
         let configuration = DocumentRecognitionConfiguration(
-            mode: arguments.flags.contains("ocr-only") ? .ocr : .structure,
+            mode: mode,
+            ocrProvider: provider,
+            ocrModelSize: modelSize,
             maxConcurrentDocuments: jobs,
             classifyOrientation: !arguments.flags.contains("no-orientation"),
             unwarpDocument: arguments.flags.contains("unwarp"),
@@ -166,6 +179,9 @@ private struct FileNestCLI {
         writeJSON([
             "ok": true,
             "format": format.fileExtension,
+            "mode": mode.rawValue,
+            "provider": mode == .ocr ? provider.rawValue : DocumentRecognitionProvider.cpu.rawValue,
+            "modelSize": mode == .ocr ? modelSize.rawValue : DocumentRecognitionModelSize.server.rawValue,
             "documents": items,
             "metrics": [
                 "count": batch.metrics.documentCount,
@@ -221,6 +237,29 @@ private struct FileNestCLI {
         URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
     }
 
+    private static func recognitionProvider(
+        _ arguments: Arguments,
+        modelSize: DocumentRecognitionModelSize
+    ) throws -> DocumentRecognitionProvider {
+        let defaultProvider: DocumentRecognitionProvider = modelSize == .mobile ? .cpu : .coreML
+        let value = (arguments.value("provider") ?? defaultProvider.rawValue).lowercased()
+        guard let provider = DocumentRecognitionProvider(rawValue: value) else {
+            throw CLIError.usage("--provider 仅支持 coreml 或 cpu")
+        }
+        if modelSize == .mobile, provider == .coreML {
+            throw CLIError.usage("Mobile + CoreML 结果校验未通过；--model-size mobile 仅支持 --provider cpu")
+        }
+        return provider
+    }
+
+    private static func recognitionModelSize(_ arguments: Arguments) throws -> DocumentRecognitionModelSize {
+        let value = (arguments.value("model-size") ?? DocumentRecognitionModelSize.server.rawValue).lowercased()
+        guard let modelSize = DocumentRecognitionModelSize(rawValue: value) else {
+            throw CLIError.usage("--model-size 仅支持 mobile 或 server")
+        }
+        return modelSize
+    }
+
     private static func writeJSON(_ object: Any, to handle: FileHandle = .standardOutput) {
         guard JSONSerialization.isValidJSONObject(object),
               let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else { return }
@@ -234,12 +273,13 @@ private struct FileNestCLI {
       filenest-cli version
       filenest-cli tools
       filenest-cli run TOOL --arguments '{"key":"value"}'
-      filenest-cli models status [--model-dir DIR]
-      filenest-cli models download [--model-dir DIR]
+      filenest-cli models status [--model-dir DIR] [--ocr-only] [--model-size mobile|server]
+      filenest-cli models download [--model-dir DIR] [--ocr-only] [--model-size mobile|server]
       filenest-cli recognize --input FILE_OR_DIR [--input FILE] --output DIR
           [--format json|markdown|html|docx|xlsx] [--jobs 1...4]
           [--unwarp] [--charts] [--no-orientation] [--no-tables] [--no-formula]
-          [--ocr-only]  # 只运行 PP-OCRv5 两模型
+          [--ocr-only] [--model-size mobile|server] [--provider coreml|cpu]
+          # 默认 Server + CoreML；Mobile 自动使用 CPU（不支持 Mobile + CoreML）
 
     stdout 只输出最终 JSON；下载进度与错误 JSON 输出到 stderr，适合 MCP/自动化调用。
     """

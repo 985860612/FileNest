@@ -42,7 +42,9 @@ struct DocumentRecognitionView: View {
                     systemImage: model.modelsReady ? "checkmark.circle.fill" : "arrow.down.circle"
                 )
                 .foregroundStyle(model.modelsReady ? FileNestTheme.green : FileNestTheme.orange)
-                Text("SDK \(DocumentRecognitionService.sdkVersion) · CPU 精确模式")
+                Text(isOCR
+                    ? "SDK \(DocumentRecognitionService.sdkVersion) · \(model.ocrModelSize.title) · \(model.ocrProvider.title)"
+                    : "SDK \(DocumentRecognitionService.sdkVersion) · CPU 精确模式")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -54,7 +56,22 @@ struct DocumentRecognitionView: View {
                     .disabled(model.isDownloading || model.isWorking)
             }
             HStack(spacing: 16) {
-                if !isOCR {
+                if isOCR {
+                    Picker("模型", selection: $model.ocrModelSize) {
+                        ForEach(DocumentRecognitionModelSize.allCases) { size in
+                            Text(size.title).tag(size)
+                        }
+                    }
+                    .frame(width: 210)
+                    .disabled(model.isWorking || model.isDownloading)
+                    Picker("推理", selection: $model.ocrProvider) {
+                        ForEach(DocumentRecognitionProvider.allCases) { provider in
+                            Text(provider.title).tag(provider)
+                        }
+                    }
+                    .frame(width: 180)
+                    .disabled(model.isWorking || model.ocrModelSize == .mobile)
+                } else {
                     Stepper("并发 \(model.maxConcurrentDocuments)", value: $model.maxConcurrentDocuments, in: 1...4)
                         .frame(width: 120)
                     Toggle("方向校正", isOn: $model.classifyOrientation).toggleStyle(.checkbox)
@@ -73,7 +90,7 @@ struct DocumentRecognitionView: View {
                     .disabled(model.isWorking || model.isDownloading || !model.modelsReady || model.items.isEmpty)
             }
             Text(isOCR
-                ? "仅加载 PP-OCRv5 检测与识别 2 个模型；PDF 按页转图后识别，不运行版面、阅读顺序、表格、公式或图表模型。"
+                ? "小模型固定使用已验证的 CPU 路径，约 420 MiB，适合批量通用 OCR；大模型精度更高，可选 CoreML 快速或 CPU 精确。"
                 : "默认并发 2 是 M 系列 Mac 的内存/吞吐平衡点；CoreML 对当前 server 模型结果不一致，因此固定使用已验证的 CPU 路径。")
                 .font(.caption)
                 .foregroundStyle(.secondary)

@@ -28,7 +28,7 @@ struct FileNestMCP {
 
     private static func handle(_ method: String, params: [String: Any]) async throws -> [String: Any] {
         switch method {
-        case "initialize": return ["protocolVersion": "2025-03-26", "capabilities": ["tools": ["listChanged": false]], "serverInfo": ["name": "filenest-mcp", "version": "0.3.1"]]
+        case "initialize": return ["protocolVersion": "2025-03-26", "capabilities": ["tools": ["listChanged": false]], "serverInfo": ["name": "filenest-mcp", "version": "0.3.3"]]
         case "ping": return [:]
         case "tools/list": return ["tools": toolDefinitions]
         case "tools/call":
@@ -48,12 +48,25 @@ struct FileNestMCP {
         case "document_models_status":
             let root = modelRoot(arguments), service = DocumentRecognitionService(modelRoot: root)
             let mode = recognitionMode(arguments)
-            return ["ready": await service.modelsReady(mode: mode), "mode": mode.rawValue, "modelDirectory": root.path, "modelCount": DocumentRecognitionService.modelComponents(for: mode).count]
+            let modelSize = try recognitionModelSize(arguments)
+            return [
+                "ready": await service.modelsReady(mode: mode, modelSize: modelSize),
+                "mode": mode.rawValue,
+                "modelSize": mode == .ocr ? modelSize.rawValue : DocumentRecognitionModelSize.server.rawValue,
+                "modelDirectory": root.path,
+                "modelCount": DocumentRecognitionService.modelComponents(for: mode, modelSize: modelSize).count,
+            ]
         case "document_models_download":
             let root = modelRoot(arguments), service = DocumentRecognitionService(modelRoot: root)
             let mode = recognitionMode(arguments)
-            try await service.downloadModels(mode: mode)
-            return ["ready": true, "mode": mode.rawValue, "modelDirectory": root.path]
+            let modelSize = try recognitionModelSize(arguments)
+            try await service.downloadModels(mode: mode, modelSize: modelSize)
+            return [
+                "ready": true,
+                "mode": mode.rawValue,
+                "modelSize": mode == .ocr ? modelSize.rawValue : DocumentRecognitionModelSize.server.rawValue,
+                "modelDirectory": root.path,
+            ]
         case "document_recognize": return try await recognize(arguments)
         default: return try FileNestAutomation.call(name, arguments: arguments)
         }
@@ -66,14 +79,17 @@ struct FileNestMCP {
         let formatName = (a["format"] as? String ?? "json").lowercased()
         guard let format = DocumentExportFormat.allCases.first(where: { $0.fileExtension == formatName || $0.rawValue.lowercased() == formatName }) else { throw MCPError.invalidRequest("无效输出格式") }
         let service = DocumentRecognitionService(modelRoot: modelRoot(a))
-        let batch = try await service.analyze(documents: sources, configuration: .init(mode: recognitionMode(a), maxConcurrentDocuments: (a["jobs"] as? NSNumber)?.intValue ?? 2, classifyOrientation: a["orientation"] as? Bool ?? true, unwarpDocument: a["unwarp"] as? Bool ?? false, recognizeTables: a["tables"] as? Bool ?? true, recognizeFormulae: a["formulae"] as? Bool ?? true, recognizeCharts: a["charts"] as? Bool ?? false))
+        let mode = recognitionMode(a)
+        let modelSize = try recognitionModelSize(a)
+        let provider = try recognitionProvider(a, modelSize: modelSize)
+        let batch = try await service.analyze(documents: sources, configuration: .init(mode: mode, ocrProvider: provider, ocrModelSize: modelSize, maxConcurrentDocuments: (a["jobs"] as? NSNumber)?.intValue ?? 2, classifyOrientation: a["orientation"] as? Bool ?? true, unwarpDocument: a["unwarp"] as? Bool ?? false, recognizeTables: a["tables"] as? Bool ?? true, recognizeFormulae: a["formulae"] as? Bool ?? true, recognizeCharts: a["charts"] as? Bool ?? false))
         var outputs: [[String: Any]] = []
         for (index, document) in batch.documents.enumerated() {
             let destination = unique(in: output, stem: document.source.deletingPathExtension().lastPathComponent, ext: format.fileExtension)
             try DocumentRecognitionService.export(document, format: format, to: destination)
             outputs.append(["input": document.source.path, "output": destination.path, "seconds": batch.metrics.itemSeconds[index]])
         }
-        return ["documents": outputs, "metrics": ["totalSeconds": batch.metrics.totalSeconds, "throughputPerSecond": batch.metrics.throughputPerSecond, "p50Seconds": batch.metrics.p50Seconds, "p95Seconds": batch.metrics.p95Seconds]]
+        return ["documents": outputs, "mode": mode.rawValue, "modelSize": mode == .ocr ? modelSize.rawValue : DocumentRecognitionModelSize.server.rawValue, "provider": mode == .ocr ? provider.rawValue : DocumentRecognitionProvider.cpu.rawValue, "metrics": ["totalSeconds": batch.metrics.totalSeconds, "throughputPerSecond": batch.metrics.throughputPerSecond, "p50Seconds": batch.metrics.p50Seconds, "p95Seconds": batch.metrics.p95Seconds]]
     }
 
     private static var toolDefinitions: [[String: Any]] {
@@ -108,10 +124,12 @@ struct FileNestMCP {
             tool("pdf_signatures", "提取并验证 PDF 数字签名", required: ["file"], ["file": path]),
             tool("spreadsheet_group", "按指定列分组，将其他列去重合并", required: ["workbook", "groupingColumn", "output"], ["workbook": path, "groupingColumn": property("string", "列标题或从 1 开始的列号"), "output": path]),
             tool("ncm_convert", "恢复 NCM 音频到目标目录", required: ["source", "output"], ["source": path, "output": path]),
-            tool("document_models_status", "检查 PP-StructureV3 或 OCR-only 模型是否就绪", required: [], ["modelDirectory": path, "mode": enumProperty(["structure", "ocr"])]),
-            tool("document_models_download", "下载并校验 PP-StructureV3 或 OCR-only 模型", required: [], ["modelDirectory": path, "mode": enumProperty(["structure", "ocr"])]),
+            tool("document_models_status", "检查 PP-StructureV3 或 OCR-only 模型是否就绪", required: [], ["modelDirectory": path, "mode": enumProperty(["structure", "ocr"]), "modelSize": enumProperty(["mobile", "server"])]),
+            tool("document_models_download", "下载并校验 PP-StructureV3 或 OCR-only 模型", required: [], ["modelDirectory": path, "mode": enumProperty(["structure", "ocr"]), "modelSize": enumProperty(["mobile", "server"])]),
             tool("document_recognize", "批量识别图片或 PDF；mode=ocr 时仅运行 PP-OCRv5 检测与识别", required: ["inputs", "output"], [
                 "inputs": paths, "output": path, "modelDirectory": path, "mode": enumProperty(["structure", "ocr"]),
+                "provider": enumProperty(["coreml", "cpu"]),
+                "modelSize": enumProperty(["mobile", "server"]),
                 "format": enumProperty(["json", "markdown", "html", "docx", "xlsx"]), "jobs": property("integer", "并发文档数"),
                 "orientation": property("boolean"), "unwarp": property("boolean"), "tables": property("boolean"),
                 "formulae": property("boolean"), "charts": property("boolean"),
@@ -140,6 +158,18 @@ struct FileNestMCP {
 
     private static func modelRoot(_ a: [String: Any]) -> URL { (a["modelDirectory"] as? String).map(fileURL) ?? DocumentRecognitionService.defaultModelRoot() }
     private static func recognitionMode(_ a: [String: Any]) -> DocumentRecognitionMode { (a["mode"] as? String) == "ocr" ? .ocr : .structure }
+    private static func recognitionProvider(_ a: [String: Any], modelSize: DocumentRecognitionModelSize) throws -> DocumentRecognitionProvider {
+        let defaultProvider: DocumentRecognitionProvider = modelSize == .mobile ? .cpu : .coreML
+        let value = (a["provider"] as? String ?? defaultProvider.rawValue).lowercased()
+        guard let provider = DocumentRecognitionProvider(rawValue: value) else { throw MCPError.invalidRequest("provider 仅支持 coreml 或 cpu") }
+        if modelSize == .mobile, provider == .coreML { throw MCPError.invalidRequest("Mobile + CoreML 结果校验未通过；Mobile 仅支持 CPU") }
+        return provider
+    }
+    private static func recognitionModelSize(_ a: [String: Any]) throws -> DocumentRecognitionModelSize {
+        let value = (a["modelSize"] as? String ?? DocumentRecognitionModelSize.server.rawValue).lowercased()
+        guard let modelSize = DocumentRecognitionModelSize(rawValue: value) else { throw MCPError.invalidRequest("modelSize 仅支持 mobile 或 server") }
+        return modelSize
+    }
     private static func fileURL(_ path: String) -> URL { URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL }
     private static func unique(in directory: URL, stem: String, ext: String) -> URL { var value = directory.appendingPathComponent(stem).appendingPathExtension(ext); var index = 2; while FileManager.default.fileExists(atPath: value.path) { value = directory.appendingPathComponent("\(stem)_\(index)").appendingPathExtension(ext); index += 1 }; return value }
     private static func jsonText(_ object: Any) -> String { guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]), let text = String(data: data, encoding: .utf8) else { return "{}" }; return text }

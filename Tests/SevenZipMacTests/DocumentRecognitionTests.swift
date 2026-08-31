@@ -15,6 +15,10 @@ struct DocumentRecognitionTests {
             PaddleOCRModelCatalog.ocrV5ServerDetection.name,
             PaddleOCRModelCatalog.ocrV5ServerRecognition.name,
         ])
+        #expect(DocumentRecognitionService.modelComponents(for: .ocr, modelSize: .mobile).map(\.artifact.name) == [
+            "PP-OCRv5_mobile_det_onnx",
+            "PP-OCRv5_mobile_rec_onnx",
+        ])
         #expect(Set(DocumentRecognitionService.modelComponents.map(\.artifact.name)).count == 11)
         #expect(DocumentRecognitionService.modelComponents.allSatisfy { $0.artifact.modelSHA256.count == 64 })
         #expect(DocumentRecognitionService.accepts(URL(fileURLWithPath: "/tmp/a.PDF")))
@@ -27,11 +31,21 @@ struct DocumentRecognitionTests {
     func ocrOnlyMode() {
         let configuration = DocumentRecognitionConfiguration(mode: .ocr, maxConcurrentDocuments: 4)
         #expect(configuration.mode == .ocr)
+        #expect(configuration.ocrProvider == .coreML)
+        #expect(configuration.ocrModelSize == .server)
+        #expect(DocumentRecognitionConfiguration(mode: .ocr, ocrProvider: .cpu).ocrProvider == .cpu)
+        #expect(DocumentRecognitionConfiguration(mode: .ocr, ocrModelSize: .mobile).ocrModelSize == .mobile)
+        #expect(DocumentRecognitionProvider.coreML.rawValue == "coreml")
+        #expect(DocumentRecognitionProvider.coreML.title == "CoreML 快速")
+        #expect(DocumentRecognitionModelSize.mobile.rawValue == "mobile")
+        #expect(DocumentRecognitionModelSize.mobile.title == "小模型（Mobile）")
         #expect(AppDestination.textRecognition.title == "文字识别 OCR")
         #expect(AppDestination.textRecognition.subtitle.contains("PP-OCRv5"))
 
         let model = DocumentRecognitionWorkspaceModel(mode: .ocr)
         #expect(model.mode == .ocr)
+        #expect(model.ocrProvider == .coreML)
+        #expect(model.ocrModelSize == .server)
         #expect(model.maxConcurrentDocuments == 1)
         #expect(!model.classifyOrientation)
         #expect(!model.recognizeTables)
@@ -51,6 +65,24 @@ struct DocumentRecognitionTests {
         let service = DocumentRecognitionService(modelRoot: root)
         #expect(await !service.modelsReady())
         #expect(await !service.modelsReady(mode: .ocr))
+        #expect(await !service.modelsReady(mode: .ocr, modelSize: .mobile))
+    }
+
+    @Test("Mobile OCR rejects the CoreML combination that failed result parity")
+    func mobileCoreMLIsRejected() async {
+        let service = DocumentRecognitionService()
+        do {
+            _ = try await service.analyze(
+                documents: [URL(fileURLWithPath: "/tmp/input.png")],
+                configuration: .init(mode: .ocr, ocrProvider: .coreML, ocrModelSize: .mobile)
+            )
+            Issue.record("Expected Mobile + CoreML to be rejected")
+        } catch {
+            guard case DocumentRecognitionError.unsupportedOCRCombination = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+        }
     }
 
     @Test("Every structured export format writes a usable file")
